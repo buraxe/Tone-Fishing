@@ -32,36 +32,86 @@ function medianFilter(v, k) {
  * Turn segmenter frames into a clean contour.
  * Returns null when there is too little reliable voicing.
  */
+// Octave-type errors a pitch tracker makes on voice: 1/2, 1/3 and 2x, 3x the true F0.
+// (Bigger corrections were tried: they glued hum and rumble onto the syllable.)
+const OCTAVE_SHIFTS = [0, 12, -12, 19.02, -19.02];
+
+/**
+ * Keep the pitch track that is physically continuous.
+ * A voice cannot move more than ~3 semitones between 16 ms frames, so the track is
+ * split into continuous runs. The longest run is the anchor; neighbouring runs are
+ * joined to it if they line up (directly or after an octave correction) and dropped
+ * if they don't. This removes stray sub-harmonic frames at onsets/offsets and
+ * repairs creaky stretches of the 3rd tone that the tracker halves.
+ */
+export function continuousTrack(frames, maxStep = 3) {
+  const pts = frames.map((f) => ({ f, st: toSemitones(f.f0) }));
+  const runs = [];
+  for (const p of pts) {
+    const run = runs[runs.length - 1];
+    const prev = run && run[run.length - 1];
+    if (prev && Math.abs(p.st - prev.st) <= maxStep && p.f.t - prev.f.t < 0.06) run.push(p);
+    else runs.push([p]);
+  }
+  if (!runs.length) return [];
+  // Anchor on the run with the most energy: that is the vowel, not a hum or breath
+  const energy = (r) => r.reduce((a, p) => a + p.f.rms, 0);
+  let anchor = 0;
+  runs.forEach((r, i) => { if (energy(r) > energy(runs[anchor])) anchor = i; });
+
+  const kept = new Map([[anchor, 0]]);
+  for (const dir of [-1, 1]) {
+    let edge = dir < 0 ? runs[anchor][0] : runs[anchor][runs[anchor].length - 1];
+    for (let i = anchor + dir; i >= 0 && i < runs.length; i += dir) {
+      const r = runs[i];
+      const near = dir < 0 ? r[r.length - 1] : r[0];
+      const gap = Math.abs(edge.f.t - near.f.t);
+      const allow = Math.min(8, maxStep + 60 * gap); // a gap allows proportionally more movement (fast falls reach ~60 st/s)
+      let best = null;
+      for (const s of OCTAVE_SHIFTS) {
+        const d = Math.abs(near.st + s - edge.st);
+        if (d <= allow && (!best || d < best.d)) best = { s, d };
+      }
+      // Short runs must line up without correction; corrections need evidence
+      if (best && (best.s === 0 || r.length >= 3)) {
+        kept.set(i, best.s);
+        const far = dir < 0 ? r[0] : r[r.length - 1];
+        edge = { f: far.f, st: far.st + best.s };
+      }
+    }
+  }
+  const out = [];
+  [...kept.keys()].sort((a, b) => a - b).forEach((i) => {
+    for (const p of runs[i]) out.push({ ...p.f, st: p.st + kept.get(i) });
+  });
+  return out;
+}
+
 export function extractContour(frames, minVoicedMs = 110) {
   const voiced = frames.filter((f) => f.voiced);
   if (voiced.length < 4) return null;
 
-  // Drop weak tail/onset frames (breath, creak)
+  const track = continuousTrack(voiced);
+  if (track.length < 4) return null;
+
+  // Trim weak frames at the two ends only (breath, voice offset). Quiet frames
+  // in the middle are kept: the creaky low point of the 3rd tone is often quiet.
   let peak = 0;
-  for (const f of voiced) peak = Math.max(peak, f.rms);
-  const strong = voiced.filter((f) => f.rms >= 0.15 * peak);
+  for (const f of track) peak = Math.max(peak, f.rms);
+  let a = 0, b = track.length - 1;
+  while (a < b && track[a].rms < 0.06 * peak) a++;
+  while (b > a && track[b].rms < 0.04 * peak) b--;
+  const strong = track.slice(a, b + 1);
   if (strong.length < 4) return null;
 
   const t0 = strong[0].t, t1 = strong[strong.length - 1].t;
   const spanFrames = frames.filter((f) => f.t >= t0 && f.t <= t1).length;
   const voicedFrac = strong.length / Math.max(1, spanFrames);
 
-  // Semitones + octave repair against a short running median
-  const st = [];
-  for (const f of strong) {
-    let v = toSemitones(f.f0);
-    if (st.length >= 3) {
-      const ref = median(st.slice(-3));
-      if (Math.abs(v - ref) > 8) {
-        if (Math.abs(v + 12 - ref) < 4) v += 12;
-        else if (Math.abs(v - 12 - ref) < 4) v -= 12;
-      }
-    }
-    st.push(v);
-  }
-  let smooth = medianFilter(st, 5);
-  let times = strong.map((f) => f.t);
-  if (smooth.length > 10) { smooth = smooth.slice(1, -1); times = times.slice(1, -1); }
+  // Median-of-5 smoothing; the filter shrinks its window at the ends, so the
+  // end of a fast 4th-tone fall or a 3rd-tone rise is kept.
+  const smooth = medianFilter(strong.map((f) => f.st), 5);
+  const times = strong.map((f) => f.t);
 
   const dur = times[times.length - 1] - times[0];
   if (dur * 1000 < minVoicedMs) return null;
@@ -73,7 +123,7 @@ export function extractContour(frames, minVoicedMs = 110) {
     t: times,
     st: smooth,
     dur,
-    meanSt: smooth.reduce((a, b) => a + b, 0) / smooth.length,
+    meanSt: smooth.reduce((x, y) => x + y, 0) / smooth.length,
     meanClarity: clarity / strong.length,
     voicedFrac,
   };
@@ -131,34 +181,80 @@ const clamp01 = (x) => Math.min(1, Math.max(0, x));
  * opts.prefix: compare only the opening part of each template (live charging),
  * using expected syllable duration to decide how much of the shape to use.
  */
+/**
+ * Interpretable shape features of a resampled contour (semitones).
+ * Used both for classification and for the lesson's pronunciation hints.
+ */
+export function contourFeatures(raw) {
+  const N = raw.length;
+  const avg = (a, b) => { let s = 0; for (let i = a; i < b; i++) s += raw[i]; return s / (b - a); };
+  let minIdx = 0, maxIdx = 0;
+  for (let i = 1; i < N; i++) {
+    if (raw[i] < raw[minIdx]) minIdx = i;
+    if (raw[i] > raw[maxIdx]) maxIdx = i;
+  }
+  let startMax = raw[0];
+  for (let i = 1; i <= minIdx; i++) startMax = Math.max(startMax, raw[i]);
+  let endMax = raw[minIdx];
+  for (let i = minIdx; i < N; i++) endMax = Math.max(endMax, raw[i]);
+  const k = Math.max(2, Math.round(N * 0.12));
+  const mid = Math.round(N * 0.4);
+  let low = 0;
+  for (let i = 0; i < N; i++) if (raw[i] - raw[minIdx] < 1) low++;
+  return {
+    start: avg(0, k),
+    end: avg(N - k, N),
+    range: raw[maxIdx] - raw[minIdx],
+    net: avg(N - k, N) - avg(0, k),
+    minPos: minIdx / (N - 1),
+    maxPos: maxIdx / (N - 1),
+    fallDepth: startMax - raw[minIdx],   // how far it falls before the lowest point
+    riseAfter: endMax - raw[minIdx],     // how far it rises after the lowest point
+    lateChange: avg(N - k, N) - raw[mid], // movement over the last 60%
+    lowFrac: low / N,                     // share of the syllable spent near the bottom
+  };
+}
+
+function fitDistance(c, shape, N, upTo, cfg) {
+  const tpl = removeMean(sampleShape(shape, N, upTo).map((x) => x * cfg.chaoToSemitone));
+  let tt = 0, ct = 0;
+  for (let i = 0; i < N; i++) { tt += tpl[i] * tpl[i]; ct += c[i] * tpl[i]; }
+  let scale = 1;
+  if (tt > 1e-6) scale = Math.min(cfg.scaleMax, Math.max(cfg.scaleMin, ct / tt));
+  return dtw(c, tpl.map((x) => x * scale), cfg.dtwBand);
+}
+
 export function classifyContour(contour, cfg, opts = {}) {
   const N = cfg.points;
   const raw = resample(contour.t, contour.st, N);
   const c = removeMean(raw);
   const upTo = opts.prefix ? Math.min(1, Math.max(0.3, contour.dur / 0.48)) : 1;
+  const f = contourFeatures(raw);
+  const complete = !opts.prefix || upTo > 0.7;
 
-  // Turning-point features separate 2nd (rise from the start) from 3rd (dip, then rise)
-  let minIdx = 0;
-  for (let i = 1; i < N; i++) if (raw[i] < raw[minIdx]) minIdx = i;
-  let startMax = raw[0];
-  for (let i = 1; i <= minIdx; i++) startMax = Math.max(startMax, raw[i]);
-  const fallDepth = startMax - raw[minIdx];
-  const minPos = minIdx / (N - 1);
+  // Feature penalties (semitones) for shapes a template alone cannot rule out
   const shapePenalty = { 1: 0, 2: 0, 3: 0, 4: 0 };
-  if (minPos > 0.25 && fallDepth > 0.7) shapePenalty[2] = 0.5 * (fallDepth - 0.7) + 0.2;
-  if (!opts.prefix || upTo > 0.6) {
-    if (fallDepth < 0.6) shapePenalty[3] = 0.6 * (0.6 - fallDepth) + 0.15;
+  const dipShare = f.fallDepth / Math.max(0.5, f.fallDepth + f.riseAfter);
+  // 2nd tone may dip a little before rising, but not deeply and not late
+  if (f.fallDepth > 1.8 && dipShare > 0.22) shapePenalty[2] = 0.45 * (f.fallDepth - 1.8) + 0.25;
+  if (f.fallDepth > 1.3 && f.minPos > 0.4) shapePenalty[2] = Math.hypot(shapePenalty[2], 3 * (f.minPos - 0.4) + 0.2);
+  // 3rd tone dips in the middle; a dip right at the start followed by a long rise is a 2nd
+  if (f.minPos < 0.28 && f.riseAfter > 2.5 * Math.max(0.3, f.fallDepth)) shapePenalty[3] = 0.4;
+  // 3rd tone covers a wide pitch range; a gentle drift is not a 3rd
+  if (f.range < 2.5) shapePenalty[3] = Math.hypot(shapePenalty[3], 0.5 * (2.5 - f.range) + 0.2);
+  if (complete) {
+    // 2nd tone must still be rising in its second half
+    if (f.lateChange < 1.2) shapePenalty[2] = Math.hypot(shapePenalty[2], 0.4 * (1.2 - f.lateChange) + 0.2);
+    // 3rd tone needs a real dip
+    if (f.fallDepth < 1.2) shapePenalty[3] = 0.6 * (1.2 - f.fallDepth) + 0.2;
+    // A fall that keeps going to the very end is a 4th tone, not a low 3rd
+    if (f.lowFrac < 0.2 && f.riseAfter < 0.8) shapePenalty[3] = Math.hypot(shapePenalty[3], 0.6);
   }
 
   const distances = {};
   for (const k of [1, 2, 3, 4]) {
-    const tpl = removeMean(sampleShape(TONES[k].shape, N, upTo).map((x) => x * cfg.chaoToSemitone));
-    let tt = 0, ct = 0;
-    for (let i = 0; i < N; i++) { tt += tpl[i] * tpl[i]; ct += c[i] * tpl[i]; }
-    let scale = 1;
-    if (tt > 1e-6) scale = Math.min(cfg.scaleMax, Math.max(cfg.scaleMin, ct / tt));
-    const scaled = tpl.map((x) => x * scale);
-    const d = dtw(c, scaled, cfg.dtwBand);
+    let d = Infinity;
+    for (const shape of TONES[k].variants || [TONES[k].shape]) d = Math.min(d, fitDistance(c, shape, N, upTo, cfg));
     distances[k] = Math.hypot(d, shapePenalty[k]);
   }
 
@@ -181,7 +277,7 @@ export function classifyContour(contour, cfg, opts = {}) {
   const confidence = fits ? probs[top] * Math.sqrt(quality) : 0;
   const tone = confidence >= cfg.minConfidence ? top : 'unknown';
 
-  return { tone, top, confidence, probs, distances, quality, contour: c };
+  return { tone, top, confidence, probs, distances, quality, features: f, contour: c };
 }
 
 /** 0-100 match score of a classification against the target tone. */

@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>声调钓鱼</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;600;800&family=Noto+Serif+SC:wght@700&family=ZCOOL+XiaoWei&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<!--BODY-START-->
+<div id="app">
+  <header class="hud">
+    <div class="brand">
+      <span class="seal" aria-hidden="true">声</span>
+      <h1>声调钓鱼</h1>
+      <span class="level-chip" id="levelChip">第一关</span>
+      <span class="badge" id="demoBadge" hidden>示范模式</span>
+    </div>
+    <div class="hud-stats">
+      <div class="mic-meter" id="micMeter" aria-label="麦克风"><i></i><i></i><i></i><i></i><i></i></div>
+      <div class="stat"><span class="stat-label">得分</span><span class="stat-value" id="score">0</span></div>
+      <div class="stat"><span class="stat-label">连胜</span><span class="stat-value" id="combo">0</span></div>
+      <button class="btn ghost small" id="settingsBtn" type="button">设置</button>
+    </div>
+  </header>
+
+  <main class="stage">
+    <section class="panel">
+      <div class="card">
+        <div class="tianzige"><span class="hanzi" id="hanzi">马</span></div>
+        <div class="card-info">
+          <div class="pinyin" id="pinyin">mǎ</div>
+          <div class="tone-name"><span id="toneName">第三声</span><span class="alias" id="toneAlias">上声 · 214</span></div>
+          <div class="glyph" id="toneGlyph"></div>
+        </div>
+      </div>
+
+      <div class="graph-wrap">
+        <div class="graph-head">
+          <span class="legend legend-target" id="legendTarget"><i></i>目标声调</span>
+          <span class="legend legend-you"><i></i>你的发音</span>
+          <span class="match">匹配度 <b id="matchVal">—</b></span>
+        </div>
+        <canvas id="pitchGraph"></canvas>
+      </div>
+
+      <div class="feedback" aria-live="polite">
+        <p class="fb-main" id="fbMain">请读出这个字</p>
+        <p class="fb-detail" id="fbDetail"></p>
+      </div>
+
+      <div class="controls">
+        <div class="chances" id="chances" aria-hidden="true"></div>
+        <div class="buttons">
+          <button class="btn" id="demoRightBtn" type="button" hidden>示范正确发音</button>
+          <button class="btn ghost" id="demoWrongBtn" type="button" hidden>示范错误发音</button>
+          <button class="btn" id="retryBtn" type="button" hidden>再试一次</button>
+          <button class="btn" id="nextBtn" type="button" hidden>下一题</button>
+          <button class="btn ghost" id="listenBtn" type="button">听声调示范</button>
+          <button class="btn text" id="skipBtn" type="button">跳过</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="lake">
+      <canvas id="scene"></canvas>
+      <div class="banner" id="banner" hidden></div>
+      <div class="powerbar" id="powerbar">
+        <span class="pb-label">声调蓄力</span>
+        <div class="pb-track"><div class="pb-fill" id="pbFill"></div></div>
+        <span class="pb-val" id="pbVal">0%</span>
+      </div>
+    </section>
+  </main>
+
+  <div class="overlay" id="titleOverlay">
+    <div class="sheet title-sheet">
+      <div class="title-head">
+        <span class="seal big" aria-hidden="true">声</span>
+        <div>
+          <h2 class="title">声调钓鱼</h2>
+          <p class="subtitle">说对声调，钓到鱼儿</p>
+        </div>
+      </div>
+      <div class="tone-legend" id="toneLegend"></div>
+      <p class="section-label">选择关卡</p>
+      <div class="levels" id="levels"></div>
+      <button class="btn big" id="startBtn" type="button">开始游戏</button>
+      <p class="privacy">你的声音仅用于实时声调分析，不会上传到服务器。</p>
+    </div>
+  </div>
+
+  <div class="overlay" id="micOverlay" hidden>
+    <div class="sheet mic-sheet">
+      <div class="mic-icon" aria-hidden="true"></div>
+      <p class="mic-msg" id="micMsg">请允许使用麦克风。</p>
+      <p class="privacy">你的声音仅用于实时声调分析，不会上传到服务器。</p>
+      <div class="buttons center">
+        <button class="btn" id="micRetryBtn" type="button" hidden>重新尝试</button>
+        <button class="btn ghost" id="micDemoBtn" type="button" hidden>使用示范声音</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="overlay" id="settingsOverlay" hidden>
+    <div class="sheet settings-sheet">
+      <h3>设置</h3>
+      <p class="section-label">判定标准</p>
+      <div class="seg" id="segStrict">
+        <button type="button" data-v="lenient">宽松</button>
+        <button type="button" data-v="standard">标准</button>
+        <button type="button" data-v="strict">严格</button>
+      </div>
+      <p class="section-label">麦克风灵敏度</p>
+      <div class="seg" id="segSens">
+        <button type="button" data-v="high">高</button>
+        <button type="button" data-v="medium">中</button>
+        <button type="button" data-v="low">低</button>
+      </div>
+      <div class="buttons">
+        <button class="btn" id="settingsDone" type="button">完成</button>
+        <button class="btn ghost" id="settingsBack" type="button">返回关卡选择</button>
+      </div>
+    </div>
+  </div>
+</div>
+<!--BODY-END-->
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

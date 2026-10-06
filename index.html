@@ -21,13 +21,14 @@
     </div>
     <div class="hud-stats">
       <div class="mic-meter" id="micMeter" aria-label="麦克风"><i></i><i></i><i></i><i></i><i></i></div>
-      <div class="stat"><span class="stat-label">得分</span><span class="stat-value" id="score">0</span></div>
-      <div class="stat"><span class="stat-label">连胜</span><span class="stat-value" id="combo">0</span></div>
+      <div class="stat game-only"><span class="stat-label">得分</span><span class="stat-value" id="score">0</span></div>
+      <div class="stat game-only"><span class="stat-label">连胜</span><span class="stat-value" id="combo">0</span></div>
+      <button class="btn ghost small" id="homeBtn" type="button">返回首页</button>
       <button class="btn ghost small" id="settingsBtn" type="button">设置</button>
     </div>
   </header>
 
-  <main class="stage">
+  <main class="stage" id="stageView">
     <section class="panel">
       <div class="card">
         <div class="tianzige"><span class="hanzi" id="hanzi">马</span></div>
@@ -76,6 +77,8 @@
     </section>
   </main>
 
+  <main class="lesson" id="lessonView" hidden></main>
+
   <div class="overlay" id="titleOverlay">
     <div class="sheet title-sheet">
       <div class="title-head">
@@ -88,7 +91,11 @@
       <div class="tone-legend" id="toneLegend"></div>
       <p class="section-label">选择关卡</p>
       <div class="levels" id="levels"></div>
-      <button class="btn big" id="startBtn" type="button">开始游戏</button>
+      <div class="buttons center">
+        <button class="btn big" id="startBtn" type="button">开始游戏</button>
+        <button class="btn ghost big" id="lessonBtn" type="button">声调课堂</button>
+      </div>
+      <p class="first-note" id="firstNote">第一次玩会先上一节简短的声调课。</p>
       <p class="privacy">你的声音仅用于实时声调分析，不会上传到服务器。</p>
     </div>
   </div>
@@ -101,6 +108,7 @@
       <div class="buttons center">
         <button class="btn" id="micRetryBtn" type="button" hidden>重新尝试</button>
         <button class="btn ghost" id="micDemoBtn" type="button" hidden>使用示范声音</button>
+        <button class="btn text" id="micBackBtn" type="button">返回首页</button>
       </div>
     </div>
   </div>
@@ -120,9 +128,16 @@
         <button type="button" data-v="medium">中</button>
         <button type="button" data-v="low">低</button>
       </div>
+      <p class="section-label">声音诊断</p>
+      <div class="diag" id="diag">
+        <p id="diagText">还没有发音记录。读一个字以后，这里会显示识别结果。</p>
+        <button class="btn ghost small" id="diagCopy" type="button">复制诊断数据</button>
+        <textarea id="diagArea" readonly hidden aria-label="诊断数据"></textarea>
+        <p class="diag-note">诊断数据只包含音高数字，不包含声音。识别不准时可以复制给开发者。</p>
+      </div>
       <div class="buttons">
         <button class="btn" id="settingsDone" type="button">完成</button>
-        <button class="btn ghost" id="settingsBack" type="button">返回关卡选择</button>
+        <button class="btn ghost" id="settingsBack" type="button">返回首页</button>
       </div>
     </div>
   </div>

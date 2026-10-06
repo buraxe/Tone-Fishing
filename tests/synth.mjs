@@ -4,11 +4,12 @@
 import { CONFIG } from '../js/config.js';
 import { PitchTracker } from '../js/audio/pitchDetector.js';
 import { UtteranceSegmenter } from '../js/audio/segmenter.js';
+import { browserFilter } from './dsp.mjs';
 import { TONES, sampleShape } from '../js/data/tones.js';
 
 export const SR = 48000;
 const FFT = 4096;
-const HOP = 800; // ~60 analyses per second, like requestAnimationFrame
+const HOP = 480; // 10 ms, the browser analysis rate
 
 let seed = 12345;
 export const rand = () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
@@ -64,12 +65,12 @@ export function synth({ shape, baseHz, stepSt, dur, noise = 0.003, amp = 0.2 }) 
 }
 
 export function run(signal, onEvent) {
-  const filtered = biquadLowpass(signal, 1000);
+  const filtered = browserFilter(signal);
   const tracker = new PitchTracker(SR, CONFIG.pitch);
   const seg = new UtteranceSegmenter(CONFIG.segment);
   const utterances = [];
   for (let end = FFT; end <= filtered.length; end += HOP) {
-    const r = tracker.analyze(filtered.subarray(end - FFT, end));
+    const r = tracker.analyze(filtered.subarray(end - FFT, end), HOP / SR);
     const ev = seg.push(end / SR, r);
     if (ev && ev.type === 'end') utterances.push(ev.frames);
     if (ev && onEvent) onEvent(ev, end / SR);

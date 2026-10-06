@@ -3,12 +3,12 @@
 
 export const CONFIG = {
   pitch: {
-    fMin: 50,            // Hz, lowest F0 searched (low male voice, creaky 3rd tone)
+    fMin: 60,            // Hz, lowest F0 searched (low male voice); below this is mains hum / rumble
     fMax: 600,           // Hz, highest F0 searched (child / high female voice)
     yinThreshold: 0.15,  // YIN absolute threshold on the CMND function
     minClarity: 0.55,    // 1 - CMND at the chosen lag; below this the frame is unvoiced
-    minRms: 0.004,       // absolute level gate (~ -48 dBFS); scaled by the sensitivity setting
-    noiseRatio: 3.0,     // frame must be this many times louder than the adaptive noise floor
+    minRms: 0.0012,      // absolute level gate (~ -58 dBFS); scaled by the sensitivity setting
+    noiseRatio: 2.5,     // frame must be this many times louder than the adaptive noise floor
     targetRate: 12000,   // analysis rate after decimation
   },
 

@@ -1,22 +1,42 @@
 // Pedagogical tone models on the Chao 1-5 pitch scale.
 // Each shape is a list of [time 0..1, Chao level] control points.
+// `shape` is what the player sees. `variants` are the forms the classifier
+// accepts, taken from how native speakers actually say isolated syllables
+// (checked against real recordings in tests/real.test.mjs).
 
 export const TONES = {
   1: {
     name: '第一声', alias: '阴平', chao: '55', color: '#d2412f',
     shape: [[0, 5], [1, 5]],
+    variants: [
+      [[0, 5], [1, 5]],
+      [[0, 4.2], [0.18, 5], [1, 5]],            // short rise into the vowel after the consonant
+    ],
   },
   2: {
     name: '第二声', alias: '阳平', chao: '35', color: '#d98a12',
     shape: [[0, 3], [0.2, 2.9], [1, 5]],
+    variants: [
+      [[0, 3], [0.2, 2.9], [1, 5]],
+      [[0, 3.3], [0.32, 2.6], [1, 5]],          // small dip before the rise (very common)
+    ],
   },
   3: {
     name: '第三声', alias: '上声', chao: '214', color: '#2f8a52',
     shape: [[0, 2.2], [0.45, 1], [0.6, 1], [1, 4]],
+    variants: [
+      [[0, 2.2], [0.45, 1], [0.6, 1], [1, 4]],  // textbook 214
+      [[0, 3], [0.45, 1], [0.6, 1], [1, 3.6]],  // deeper fall, as natives say it
+      [[0, 3], [0.5, 1], [0.8, 1], [1, 1.6]],   // "half third": low dip, rise faint or creaky
+    ],
   },
   4: {
     name: '第四声', alias: '去声', chao: '51', color: '#3657b8',
     shape: [[0, 5], [0.12, 5], [1, 1]],
+    variants: [
+      [[0, 5], [0.12, 5], [1, 1]],
+      [[0, 4.3], [0.25, 5], [1, 1]],            // starts by rising to the peak, then falls
+    ],
   },
 };
 

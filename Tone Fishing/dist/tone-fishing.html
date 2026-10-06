@@ -1,0 +1,2793 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>声调钓鱼</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;600;800&family=Noto+Serif+SC:wght@700&family=ZCOOL+XiaoWei&display=swap">
+<style>
+/* Layout: teaching panel (character, tone staff, pitch graph) beside the lake;
+   stacks to one column on phones. One committed daylight look for projectors. */
+:root {
+  --ink: #1f2a2e;
+  --ink-soft: #56676b;
+  --mist: #e3ede8;
+  --paper: #fbfcf9;
+  --panel: #ffffff;
+  --jade: #2c7a72;
+  --jade-deep: #1d5a5c;
+  --koi: #e2582f;
+  --gold: #e9b949;
+  --seal: #b8322a;
+  --line: rgba(31, 42, 46, 0.12);
+  --t1: #d2412f;
+  --t2: #d98a12;
+  --t3: #2f8a52;
+  --t4: #3657b8;
+  --display: "ZCOOL XiaoWei", "STKaiti", "KaiTi", "Songti SC", serif;
+  --hanzi: "Noto Serif SC", "Songti SC", "STSong", "SimSun", serif;
+  --ui: "Noto Sans SC", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
+  --radius: 16px;
+  color-scheme: light;
+}
+
+html, body { height: 100%; }
+body {
+  margin: 0;
+  background: var(--mist);
+  color: var(--ink);
+  font-family: var(--ui);
+  font-size: 16px;
+  -webkit-tap-highlight-color: transparent;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+
+#app {
+  height: 100%;
+  max-width: 1680px;
+  margin: 0 auto;
+  padding-inline: 16px;
+  padding-block: 10px 14px;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 10px;
+}
+
+/* ---------- HUD ---------- */
+.hud { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.brand h1 { font-family: var(--display); font-weight: 400; font-size: 30px; margin: 0; letter-spacing: 0.06em; }
+.seal {
+  display: inline-grid; place-items: center;
+  width: 36px; height: 36px; border-radius: 6px;
+  background: var(--seal); color: #fff3ec;
+  font-family: var(--display); font-size: 24px; line-height: 1;
+  box-shadow: inset 0 0 0 2px rgba(255,255,255,0.25);
+  transform: rotate(-4deg);
+}
+.seal.big { width: 64px; height: 64px; font-size: 44px; border-radius: 10px; }
+.level-chip, .badge {
+  font-size: 14px; font-weight: 600; padding: 4px 10px; border-radius: 999px;
+  background: var(--paper); border: 1px solid var(--line); color: var(--ink-soft);
+}
+.badge { background: var(--gold); color: var(--ink); border-color: transparent; }
+.hud-stats { display: flex; align-items: center; gap: 18px; }
+.stat { display: flex; align-items: baseline; gap: 6px; }
+.stat-label { font-size: 15px; color: var(--ink-soft); font-weight: 600; letter-spacing: 0.04em; }
+.stat-value { font-size: 28px; font-weight: 800; font-variant-numeric: tabular-nums; min-width: 1.6ch; }
+.stat-value.bump { animation: bump 0.45s ease; }
+@keyframes bump { 40% { transform: scale(1.3); color: var(--koi); } }
+
+.mic-meter { display: flex; gap: 3px; align-items: flex-end; height: 22px; }
+.mic-meter i { width: 5px; border-radius: 2px; background: var(--line); }
+.mic-meter i:nth-child(1) { height: 30%; } .mic-meter i:nth-child(2) { height: 45%; }
+.mic-meter i:nth-child(3) { height: 60%; } .mic-meter i:nth-child(4) { height: 80%; }
+.mic-meter i:nth-child(5) { height: 100%; }
+.mic-meter i.on { background: var(--jade); }
+.mic-meter i.on.voiced { background: var(--koi); }
+
+/* ---------- stage ---------- */
+.stage {
+  display: grid;
+  grid-template-columns: minmax(320px, 410px) minmax(0, 1fr);
+  gap: 14px;
+  min-height: 0;
+}
+.panel { display: flex; flex-direction: column; gap: 10px; min-height: 0; min-width: 0; overflow: auto; }
+
+.card {
+  display: flex; gap: 16px; align-items: center;
+  background: var(--panel); border-radius: var(--radius); padding: 14px;
+  box-shadow: 0 1px 0 var(--line), 0 8px 24px -18px rgba(31,42,46,0.4);
+}
+/* 田字格: the square practice grid characters are written in */
+.tianzige {
+  flex: none; width: 128px; height: 128px; position: relative;
+  border: 2px solid var(--t-color, var(--t3));
+  border-radius: 6px;
+  background:
+    linear-gradient(to right, transparent calc(50% - 0.5px), rgba(184,50,42,0.28) calc(50% - 0.5px), rgba(184,50,42,0.28) calc(50% + 0.5px), transparent calc(50% + 0.5px)),
+    linear-gradient(to bottom, transparent calc(50% - 0.5px), rgba(184,50,42,0.28) calc(50% - 0.5px), rgba(184,50,42,0.28) calc(50% + 0.5px), transparent calc(50% + 0.5px)),
+    linear-gradient(45deg, transparent calc(50% - 0.5px), rgba(184,50,42,0.12) 50%, transparent calc(50% + 0.5px)),
+    linear-gradient(-45deg, transparent calc(50% - 0.5px), rgba(184,50,42,0.12) 50%, transparent calc(50% + 0.5px)),
+    #fffdf8;
+  display: grid; place-items: center;
+}
+.hanzi { font-family: var(--hanzi); font-weight: 700; font-size: 96px; line-height: 1; }
+.hanzi.swap { animation: swap 0.4s ease; }
+@keyframes swap { from { opacity: 0; transform: translateY(8px) scale(0.96); } }
+.card-info { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.pinyin { font-size: 40px; font-weight: 600; letter-spacing: 0.02em; color: var(--t-color, var(--t3)); line-height: 1.1; }
+.tone-name { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; font-size: 20px; font-weight: 800; }
+.alias { font-size: 14px; font-weight: 600; color: var(--ink-soft); letter-spacing: 0.05em; }
+.glyph { color: var(--ink); line-height: 0; margin-top: 2px; }
+
+.graph-wrap { background: var(--panel); border-radius: var(--radius); padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 6px; }
+.graph-head { display: flex; align-items: center; gap: 14px; font-size: 14px; font-weight: 600; color: var(--ink-soft); flex-wrap: wrap; }
+.legend { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 22px; height: 0; border-top: 3px dashed var(--t-color, var(--t3)); }
+.legend-you i { border-top: 3px solid var(--ink); }
+.match { margin-left: auto; }
+.match b { font-size: 24px; color: var(--ink); font-variant-numeric: tabular-nums; margin-left: 4px; }
+#pitchGraph { width: 100%; height: 150px; display: block; border-radius: 10px; }
+
+.feedback { min-height: 64px; padding: 2px 4px; }
+.fb-main { margin: 0; font-size: 26px; font-weight: 800; letter-spacing: 0.02em; }
+.fb-main.good { color: var(--t3); }
+.fb-main.warn { color: var(--koi); }
+.fb-detail { margin: 4px 0 0; font-size: 17px; color: var(--ink-soft); font-weight: 600; line-height: 1.5; }
+.fb-detail .t { font-weight: 800; }
+
+.controls { display: flex; flex-direction: column; gap: 10px; margin-top: auto; }
+.chances { display: flex; gap: 8px; }
+.chances span { width: 14px; height: 14px; border-radius: 50%; background: var(--jade); }
+.chances span.used { background: var(--line); }
+.buttons { display: flex; gap: 8px; flex-wrap: wrap; }
+.buttons.center { justify-content: center; }
+
+.btn {
+  font: inherit; font-weight: 700; font-size: 17px;
+  min-height: 48px; padding: 0 18px; border-radius: 12px;
+  border: 2px solid var(--jade); background: var(--jade); color: #fff;
+  cursor: pointer; transition: transform 0.12s ease, background 0.15s ease;
+}
+.btn:hover { background: var(--jade-deep); border-color: var(--jade-deep); }
+.btn:active { transform: translateY(1px); }
+.btn:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+.btn.ghost { background: transparent; color: var(--jade-deep); }
+.btn.ghost:hover { background: rgba(44,122,114,0.08); }
+.btn.text { background: transparent; border-color: transparent; color: var(--ink-soft); }
+.btn.text:hover { color: var(--ink); background: rgba(31,42,46,0.05); }
+.btn.small { min-height: 40px; font-size: 15px; padding: 0 14px; }
+.btn.big { min-height: 60px; font-size: 22px; padding: 0 40px; letter-spacing: 0.08em; }
+
+/* ---------- lake ---------- */
+.lake {
+  position: relative; min-height: 0; min-width: 0;
+  display: flex; flex-direction: column;
+  border-radius: var(--radius); overflow: hidden;
+  background: var(--jade-deep);
+}
+#scene { flex: 1; width: 100%; min-height: 0; display: block; }
+.banner {
+  position: absolute; left: 50%; top: 26%; transform: translate(-50%, -50%);
+  font-family: var(--display); font-size: clamp(34px, 6vw, 72px);
+  color: #fff; text-shadow: 0 3px 0 rgba(0,0,0,0.18), 0 0 24px rgba(0,0,0,0.25);
+  letter-spacing: 0.08em; white-space: nowrap; pointer-events: none;
+  animation: pop 0.45s cubic-bezier(.2,1.6,.4,1);
+}
+.banner.good { color: #fff4c9; }
+.banner.trash { color: #e8eef0; }
+@keyframes pop { from { transform: translate(-50%, -50%) scale(0.5); opacity: 0; } }
+
+.powerbar {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 16px; background: rgba(15, 45, 48, 0.92); color: #eaf3f1;
+}
+.pb-label { font-weight: 800; font-size: 18px; letter-spacing: 0.08em; white-space: nowrap; }
+.pb-track {
+  position: relative; flex: 1; height: 28px; border-radius: 14px;
+  background: rgba(255,255,255,0.12); overflow: hidden;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.25);
+}
+.pb-track::after {
+  content: ""; position: absolute; inset: 0;
+  background: repeating-linear-gradient(to right, transparent 0 calc(10% - 1px), rgba(255,255,255,0.14) calc(10% - 1px) 10%);
+  pointer-events: none;
+}
+.pb-fill {
+  height: 100%; width: 0%;
+  background: linear-gradient(90deg, var(--gold), var(--koi));
+  border-radius: 14px; transition: width 0.08s linear;
+}
+.pb-val { font-weight: 800; font-size: 20px; min-width: 4ch; text-align: right; font-variant-numeric: tabular-nums; }
+.powerbar.shake .pb-track { animation: shake 0.4s ease; }
+.powerbar.full .pb-fill { animation: glow 0.6s ease infinite alternate; }
+@keyframes shake { 20% { transform: translateX(-7px); } 40% { transform: translateX(6px); } 60% { transform: translateX(-4px); } 80% { transform: translateX(2px); } }
+@keyframes glow { to { filter: brightness(1.25) saturate(1.2); } }
+
+/* ---------- overlays ---------- */
+.overlay {
+  position: fixed; inset: 0; z-index: 10;
+  display: grid; place-items: center;
+  padding: 16px;
+  background: rgba(20, 50, 52, 0.45);
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  overflow: auto;
+}
+.sheet {
+  width: min(720px, 100%); background: var(--paper); border-radius: 22px;
+  padding: 26px; display: flex; flex-direction: column; gap: 16px;
+  box-shadow: 0 30px 80px -30px rgba(0,0,0,0.5);
+}
+.title-head { display: flex; align-items: center; gap: 18px; }
+.title { font-family: var(--display); font-weight: 400; font-size: clamp(44px, 8vw, 68px); margin: 0; letter-spacing: 0.08em; line-height: 1.05; text-wrap: balance; }
+.subtitle { margin: 4px 0 0; font-size: 20px; color: var(--ink-soft); letter-spacing: 0.12em; }
+.tone-legend { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.tone-chip { background: var(--panel); border-radius: 12px; padding: 10px; display: flex; flex-direction: column; align-items: center; gap: 4px; border: 1px solid var(--line); }
+.tone-chip b { font-size: 16px; }
+.tone-chip span { font-size: 18px; font-weight: 600; }
+.section-label { margin: 0; font-size: 14px; font-weight: 800; letter-spacing: 0.12em; color: var(--ink-soft); }
+.levels { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.level {
+  font: inherit; text-align: left; cursor: pointer;
+  border: 2px solid var(--line); background: var(--panel); border-radius: 12px; padding: 10px 12px;
+  display: flex; flex-direction: column; gap: 2px; min-height: 64px; color: var(--ink);
+}
+.level b { font-size: 17px; }
+.level small { font-size: 13px; color: var(--ink-soft); }
+.level.active { border-color: var(--jade); box-shadow: inset 0 0 0 1px var(--jade); }
+.level:disabled { cursor: default; opacity: 0.55; }
+.level:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+.title-sheet .btn.big { align-self: center; }
+.privacy { margin: 0; font-size: 14px; color: var(--ink-soft); text-align: center; }
+
+.mic-sheet { width: min(460px, 100%); align-items: center; text-align: center; }
+.mic-msg { margin: 0; font-size: 22px; font-weight: 800; line-height: 1.5; text-wrap: balance; }
+.mic-icon {
+  width: 56px; height: 56px; border-radius: 50%; background: var(--jade); position: relative;
+  animation: breathe 1.6s ease-in-out infinite;
+}
+.mic-icon::before { content: ""; position: absolute; left: 21px; top: 12px; width: 14px; height: 22px; border-radius: 7px; background: #fff; }
+.mic-icon::after { content: ""; position: absolute; left: 27px; top: 34px; width: 2px; height: 10px; background: #fff; }
+@keyframes breathe { 50% { box-shadow: 0 0 0 12px rgba(44,122,114,0.15); } }
+
+.settings-sheet { width: min(440px, 100%); }
+.settings-sheet h3 { margin: 0; font-size: 24px; }
+.seg { display: grid; grid-template-columns: repeat(3, 1fr); background: var(--mist); border-radius: 12px; padding: 4px; gap: 4px; }
+.seg button { font: inherit; font-weight: 700; font-size: 16px; min-height: 44px; border: 0; border-radius: 9px; background: transparent; color: var(--ink-soft); cursor: pointer; }
+.seg button.on { background: var(--panel); color: var(--ink); box-shadow: 0 1px 3px rgba(0,0,0,0.12); }
+.seg button:focus-visible { outline: 3px solid var(--gold); }
+
+/* ---------- narrow screens ---------- */
+@media (max-width: 860px) {
+  html, body { height: auto; }
+  #app { height: auto; min-height: 100%; }
+  .stage { grid-template-columns: minmax(0, 1fr); }
+  .panel { overflow: visible; }
+  .lake { order: 2; height: max(300px, 52vh); }
+  .panel { display: contents; }
+  .card { order: 0; }
+  .graph-wrap { order: 1; }
+  .feedback { order: 3; }
+  .controls { order: 4; }
+  .brand h1 { font-size: 24px; }
+  .hud-stats { gap: 12px; }
+  .stat-value { font-size: 22px; }
+}
+@media (max-width: 560px) {
+  .tianzige { width: 96px; height: 96px; }
+  .hanzi { font-size: 72px; }
+  .pinyin { font-size: 32px; }
+  #pitchGraph { height: 120px; }
+  .tone-legend, .levels { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .mic-meter { display: none; }
+  .sheet { padding: 20px; }
+  .pb-label { font-size: 15px; }
+}
+
+/* Projector / large screens: scale type up */
+@media (min-width: 1400px) and (min-height: 820px) {
+  .stage { grid-template-columns: minmax(360px, 480px) minmax(0, 1fr); }
+  .tianzige { width: 160px; height: 160px; }
+  .hanzi { font-size: 124px; }
+  .pinyin { font-size: 50px; }
+  #pitchGraph { height: 200px; }
+  .fb-main { font-size: 30px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition: none !important; }
+}
+
+</style>
+</head>
+<body>
+<div id="app">
+  <header class="hud">
+    <div class="brand">
+      <span class="seal" aria-hidden="true">声</span>
+      <h1>声调钓鱼</h1>
+      <span class="level-chip" id="levelChip">第一关</span>
+      <span class="badge" id="demoBadge" hidden>示范模式</span>
+    </div>
+    <div class="hud-stats">
+      <div class="mic-meter" id="micMeter" aria-label="麦克风"><i></i><i></i><i></i><i></i><i></i></div>
+      <div class="stat"><span class="stat-label">得分</span><span class="stat-value" id="score">0</span></div>
+      <div class="stat"><span class="stat-label">连胜</span><span class="stat-value" id="combo">0</span></div>
+      <button class="btn ghost small" id="settingsBtn" type="button">设置</button>
+    </div>
+  </header>
+
+  <main class="stage">
+    <section class="panel">
+      <div class="card">
+        <div class="tianzige"><span class="hanzi" id="hanzi">马</span></div>
+        <div class="card-info">
+          <div class="pinyin" id="pinyin">mǎ</div>
+          <div class="tone-name"><span id="toneName">第三声</span><span class="alias" id="toneAlias">上声 · 214</span></div>
+          <div class="glyph" id="toneGlyph"></div>
+        </div>
+      </div>
+
+      <div class="graph-wrap">
+        <div class="graph-head">
+          <span class="legend legend-target" id="legendTarget"><i></i>目标声调</span>
+          <span class="legend legend-you"><i></i>你的发音</span>
+          <span class="match">匹配度 <b id="matchVal">—</b></span>
+        </div>
+        <canvas id="pitchGraph"></canvas>
+      </div>
+
+      <div class="feedback" aria-live="polite">
+        <p class="fb-main" id="fbMain">请读出这个字</p>
+        <p class="fb-detail" id="fbDetail"></p>
+      </div>
+
+      <div class="controls">
+        <div class="chances" id="chances" aria-hidden="true"></div>
+        <div class="buttons">
+          <button class="btn" id="demoRightBtn" type="button" hidden>示范正确发音</button>
+          <button class="btn ghost" id="demoWrongBtn" type="button" hidden>示范错误发音</button>
+          <button class="btn" id="retryBtn" type="button" hidden>再试一次</button>
+          <button class="btn" id="nextBtn" type="button" hidden>下一题</button>
+          <button class="btn ghost" id="listenBtn" type="button">听声调示范</button>
+          <button class="btn text" id="skipBtn" type="button">跳过</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="lake">
+      <canvas id="scene"></canvas>
+      <div class="banner" id="banner" hidden></div>
+      <div class="powerbar" id="powerbar">
+        <span class="pb-label">声调蓄力</span>
+        <div class="pb-track"><div class="pb-fill" id="pbFill"></div></div>
+        <span class="pb-val" id="pbVal">0%</span>
+      </div>
+    </section>
+  </main>
+
+  <div class="overlay" id="titleOverlay">
+    <div class="sheet title-sheet">
+      <div class="title-head">
+        <span class="seal big" aria-hidden="true">声</span>
+        <div>
+          <h2 class="title">声调钓鱼</h2>
+          <p class="subtitle">说对声调，钓到鱼儿</p>
+        </div>
+      </div>
+      <div class="tone-legend" id="toneLegend"></div>
+      <p class="section-label">选择关卡</p>
+      <div class="levels" id="levels"></div>
+      <button class="btn big" id="startBtn" type="button">开始游戏</button>
+      <p class="privacy">你的声音仅用于实时声调分析，不会上传到服务器。</p>
+    </div>
+  </div>
+
+  <div class="overlay" id="micOverlay" hidden>
+    <div class="sheet mic-sheet">
+      <div class="mic-icon" aria-hidden="true"></div>
+      <p class="mic-msg" id="micMsg">请允许使用麦克风。</p>
+      <p class="privacy">你的声音仅用于实时声调分析，不会上传到服务器。</p>
+      <div class="buttons center">
+        <button class="btn" id="micRetryBtn" type="button" hidden>重新尝试</button>
+        <button class="btn ghost" id="micDemoBtn" type="button" hidden>使用示范声音</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="overlay" id="settingsOverlay" hidden>
+    <div class="sheet settings-sheet">
+      <h3>设置</h3>
+      <p class="section-label">判定标准</p>
+      <div class="seg" id="segStrict">
+        <button type="button" data-v="lenient">宽松</button>
+        <button type="button" data-v="standard">标准</button>
+        <button type="button" data-v="strict">严格</button>
+      </div>
+      <p class="section-label">麦克风灵敏度</p>
+      <div class="seg" id="segSens">
+        <button type="button" data-v="high">高</button>
+        <button type="button" data-v="medium">中</button>
+        <button type="button" data-v="low">低</button>
+      </div>
+      <div class="buttons">
+        <button class="btn" id="settingsDone" type="button">完成</button>
+        <button class="btn ghost" id="settingsBack" type="button">返回关卡选择</button>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+"use strict";
+const __m1 = (() => {
+
+// Central tuning knobs. Every threshold the game uses lives here so a teacher
+// or developer can retune detection without touching the DSP code.
+
+const CONFIG = {
+  pitch: {
+    fMin: 50,            // Hz, lowest F0 searched (low male voice, creaky 3rd tone)
+    fMax: 600,           // Hz, highest F0 searched (child / high female voice)
+    yinThreshold: 0.15,  // YIN absolute threshold on the CMND function
+    minClarity: 0.55,    // 1 - CMND at the chosen lag; below this the frame is unvoiced
+    minRms: 0.004,       // absolute level gate (~ -48 dBFS); scaled by the sensitivity setting
+    noiseRatio: 3.0,     // frame must be this many times louder than the adaptive noise floor
+    targetRate: 12000,   // analysis rate after decimation
+  },
+
+  segment: {
+    onsetFrames: 3,      // consecutive voiced frames needed to start an utterance
+    releaseMs: 230,      // silence after the last voiced frame that ends an utterance
+    maxMs: 1800,         // hard stop for one utterance
+    minVoicedMs: 110,    // shorter voiced runs are rejected as "请再说一次"
+  },
+
+  tone: {
+    points: 24,          // contour resample length
+    chaoToSemitone: 1.8, // one step on the Chao 1-5 scale, in semitones
+    scaleMin: 0.7,       // allowed compression of a template (narrow speakers)
+    scaleMax: 1.8,       // allowed expansion (expressive speakers)
+    dtwBand: 3,          // Sakoe-Chiba band, in resampled points
+    sigma: 0.45,         // semitones; softness of the tone posterior
+    scoreWidth: 1.5,     // semitones; how fast the 0-100 match score decays
+    maxFitDistance: 2.6, // if no template fits better than this, return unknown
+    minConfidence: 0.42, // below this the verdict is "unknown"
+  },
+
+  // Pass rules per strictness level (设置 → 判定标准)
+  strictness: {
+    lenient:  { minTargetProb: 0.34, minScore: 52, requireTop: false },
+    standard: { minTargetProb: 0.50, minScore: 62, requireTop: true },
+    strict:   { minTargetProb: 0.66, minScore: 76, requireTop: true },
+  },
+
+  // Microphone sensitivity presets (设置 → 麦克风灵敏度): multiplier on minRms
+  sensitivity: { high: 0.5, medium: 1, low: 2 },
+
+  power: {
+    minLiveMs: 130,      // voiced time before live charging starts
+    chargeRate: 0.9,     // max fill per second while the live match is strong
+    drainRate: 0.12,     // drain per second while the contour clearly conflicts
+    liveCap: 0.86,       // live charging stops here; the final verdict fills the rest
+    wrongKeep: 0.5,      // fraction of power kept after a wrong attempt
+  },
+
+  game: {
+    attemptsPerRound: 3,
+    basePoints: 100,
+    comboBonus: 20,      // extra points per combo step
+    comboBonusCap: 5,    // bonus stops growing after this many steps
+    autoNextMs: 2600,
+  },
+};
+
+return { CONFIG };
+})();
+
+const __m2 = (() => {
+
+// Audio graph: [mic | demo voice] → input gain → 1 kHz low-pass → analyser.
+// Nothing is recorded or sent anywhere; frames are read and discarded each tick.
+
+class AudioEngine {
+  constructor() {
+    this.ctx = null;
+    this.stream = null;
+    this.micSource = null;
+    this.analyser = null;
+    this.buffer = null;
+  }
+
+  /** Must be called from a user gesture (Safari / mobile autoplay rules). */
+  ensureContext() {
+    if (!this.ctx) {
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      this.ctx = new Ctx();
+      this.input = this.ctx.createGain();
+      const lp = this.ctx.createBiquadFilter();
+      lp.type = 'lowpass';
+      lp.frequency.value = 1000;
+      lp.Q.value = 0.707;
+      this.analyser = this.ctx.createAnalyser();
+      // ~85 ms of history; the tracker reads only the newest ~45 ms
+      this.analyser.fftSize = this.ctx.sampleRate > 50000 ? 8192 : 4096;
+      this.analyser.smoothingTimeConstant = 0;
+      this.input.connect(lp);
+      lp.connect(this.analyser);
+      this.buffer = new Float32Array(this.analyser.fftSize);
+    }
+    if (this.ctx.state === 'suspended') this.ctx.resume();
+    return this.ctx;
+  }
+
+  static micSupported() {
+    return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia) && window.isSecureContext !== false;
+  }
+
+  /** Resolves 'ok' | 'denied' | 'insecure'. */
+  async startMic() {
+    this.ensureContext();
+    if (!AudioEngine.micSupported()) return 'insecure';
+    try {
+      this.stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: 1 },
+      });
+    } catch (e) {
+      return 'denied';
+    }
+    this.micSource = this.ctx.createMediaStreamSource(this.stream);
+    this.micSource.connect(this.input);
+    return 'ok';
+  }
+
+  stopMic() {
+    if (this.micSource) this.micSource.disconnect();
+    if (this.stream) this.stream.getTracks().forEach((t) => t.stop());
+    this.micSource = null;
+    this.stream = null;
+  }
+
+  get hasMic() { return !!this.micSource; }
+
+  read() {
+    if (!this.analyser) return null;
+    if (this.analyser.getFloatTimeDomainData) this.analyser.getFloatTimeDomainData(this.buffer);
+    return this.buffer;
+  }
+
+  get sampleRate() { return this.ctx ? this.ctx.sampleRate : 48000; }
+  get now() { return this.ctx ? this.ctx.currentTime : performance.now() / 1000; }
+}
+
+return { AudioEngine };
+})();
+
+const __m3 = (() => {
+
+// F0 estimation with YIN (de Cheveigné & Kawahara, 2002).
+// Frames arrive at the device rate, are decimated to ~12 kHz (the audio graph
+// low-passes at 1 kHz first), and YIN picks the first CMND dip under threshold.
+
+function decimate(input, factor, out) {
+  const n = Math.floor(input.length / factor);
+  const o = out && out.length === n ? out : new Float32Array(n);
+  for (let i = 0, j = 0; i < n; i++, j += factor) {
+    let s = 0;
+    for (let k = 0; k < factor; k++) s += input[j + k];
+    o[i] = s / factor;
+  }
+  return o;
+}
+
+/**
+ * YIN on one frame. Returns { f0, clarity } where clarity = 1 - CMND(tau*).
+ */
+function yin(x, sampleRate, opts, scratch) {
+  const tauMin = Math.max(2, Math.floor(sampleRate / opts.fMax));
+  let tauMax = Math.ceil(sampleRate / opts.fMin);
+  const W = Math.max(8, x.length - tauMax - 2);
+  tauMax = Math.min(tauMax, x.length - W - 2);
+  const d = scratch && scratch.length >= tauMax + 2 ? scratch : new Float32Array(tauMax + 2);
+
+  // Difference function + cumulative mean normalisation in one pass
+  d[0] = 1;
+  let running = 0;
+  for (let tau = 1; tau <= tauMax + 1; tau++) {
+    let sum = 0;
+    for (let j = 0; j < W; j++) {
+      const diff = x[j] - x[j + tau];
+      sum += diff * diff;
+    }
+    running += sum;
+    d[tau] = running > 0 ? (sum * tau) / running : 1;
+  }
+
+  // Absolute threshold: first dip under threshold, then walk to its local minimum
+  let best = -1;
+  for (let tau = tauMin; tau <= tauMax; tau++) {
+    if (d[tau] < opts.yinThreshold) {
+      while (tau + 1 <= tauMax && d[tau + 1] < d[tau]) tau++;
+      best = tau;
+      break;
+    }
+  }
+  if (best < 0) {
+    // No dip under threshold: take the global minimum, clarity will be low
+    let min = Infinity;
+    for (let tau = tauMin; tau <= tauMax; tau++) {
+      if (d[tau] < min) { min = d[tau]; best = tau; }
+    }
+  }
+
+  // Parabolic interpolation around the chosen lag
+  const a = d[best - 1], b = d[best], c = d[best + 1];
+  const denom = a - 2 * b + c;
+  let shift = denom > 1e-9 ? (0.5 * (a - c)) / denom : 0;
+  if (shift > 1) shift = 1; else if (shift < -1) shift = -1;
+
+  return { f0: sampleRate / (best + shift), clarity: 1 - Math.min(1, b) };
+}
+
+/**
+ * Stateful per-frame analyser: level gate with an adaptive noise floor + YIN.
+ */
+class PitchTracker {
+  constructor(sampleRate, pitchCfg) {
+    this.cfg = { ...pitchCfg };
+    this.factor = Math.max(1, Math.round(sampleRate / pitchCfg.targetRate));
+    this.rate = sampleRate / this.factor;
+    this.noiseFloor = 0.002;
+    this.sensitivity = 1;
+    this.dec = null;
+    this.scratch = new Float32Array(Math.ceil(this.rate / pitchCfg.fMin) + 4);
+  }
+
+  setSensitivity(mult) { this.sensitivity = mult; }
+
+  /** Raw samples needed per analysis: a 25 ms YIN window plus the longest lag. */
+  get frameLength() {
+    const w = Math.ceil(0.025 * this.rate);
+    const tauMax = Math.ceil(this.rate / this.cfg.fMin);
+    return (w + tauMax + 2) * this.factor;
+  }
+
+  analyze(buffer) {
+    // Use only the newest ~45 ms: short enough to follow fast tone glides,
+    // long enough for two periods of a low voice.
+    const need = this.frameLength;
+    const frame = buffer.length > need ? buffer.subarray(buffer.length - need) : buffer;
+    const n = frame.length;
+    let s = 0;
+    for (let i = 0; i < n; i++) s += frame[i] * frame[i];
+    const rms = Math.sqrt(s / n);
+
+    this.dec = decimate(frame, this.factor, this.dec);
+    const { f0, clarity } = yin(this.dec, this.rate, this.cfg, this.scratch);
+
+    const gate = Math.max(this.cfg.minRms * this.sensitivity, this.noiseFloor * this.cfg.noiseRatio);
+    const inRange = f0 >= this.cfg.fMin && f0 <= this.cfg.fMax;
+    const voiced = rms > gate && clarity >= this.cfg.minClarity && inRange;
+
+    if (!voiced) {
+      // Track background level slowly; loud non-periodic sounds raise it a little
+      this.noiseFloor += 0.03 * (Math.min(rms, this.noiseFloor * 4 + 1e-4) - this.noiseFloor);
+      this.noiseFloor = Math.min(0.05, Math.max(0.0004, this.noiseFloor));
+    }
+    return { voiced, f0, clarity, rms, gate };
+  }
+}
+
+return { decimate, yin, PitchTracker };
+})();
+
+const __m5 = (() => {
+
+// Pedagogical tone models on the Chao 1-5 pitch scale.
+// Each shape is a list of [time 0..1, Chao level] control points.
+
+const TONES = {
+  1: {
+    name: '第一声', alias: '阴平', chao: '55', color: '#d2412f',
+    shape: [[0, 5], [1, 5]],
+  },
+  2: {
+    name: '第二声', alias: '阳平', chao: '35', color: '#d98a12',
+    shape: [[0, 3], [0.2, 2.9], [1, 5]],
+  },
+  3: {
+    name: '第三声', alias: '上声', chao: '214', color: '#2f8a52',
+    shape: [[0, 2.2], [0.45, 1], [0.6, 1], [1, 4]],
+  },
+  4: {
+    name: '第四声', alias: '去声', chao: '51', color: '#3657b8',
+    shape: [[0, 5], [0.12, 5], [1, 1]],
+  },
+};
+
+/** Sample a tone shape at n evenly spaced points with cosine easing between control points. */
+function sampleShape(shape, n, upTo = 1) {
+  const out = new Float64Array(n);
+  for (let i = 0; i < n; i++) {
+    const x = (n === 1 ? 0 : i / (n - 1)) * upTo;
+    let k = 0;
+    while (k < shape.length - 2 && x > shape[k + 1][0]) k++;
+    const [x0, y0] = shape[k];
+    const [x1, y1] = shape[Math.min(k + 1, shape.length - 1)];
+    const u = x1 > x0 ? Math.min(1, Math.max(0, (x - x0) / (x1 - x0))) : 0;
+    const e = (1 - Math.cos(Math.PI * u)) / 2;
+    out[i] = y0 + (y1 - y0) * e;
+  }
+  return out;
+}
+
+return { TONES, sampleShape };
+})();
+
+const __m4 = (() => {
+const { TONES, sampleShape } = __m5;
+// A small vowel synthesiser that sings a tone contour. Used for 听声调示范
+// (play the target contour to the player) and for 示范模式 (feed a synthetic
+// voice into the analyser when no microphone is available).
+
+
+function toneDuration(tone) { return tone === 3 ? 0.62 : 0.46; }
+
+/**
+ * Play `tone` on `ctx`. Connects to the speakers and, if given, to `analysisNode`.
+ * Returns the duration in seconds.
+ */
+function speakTone(ctx, tone, { baseHz = 165, stepSt = 1.8, analysisNode = null, volume = 0.22 } = {}) {
+  const dur = toneDuration(tone);
+  const t0 = ctx.currentTime + 0.05;
+  const curve = sampleShape(TONES[tone].shape, 64);
+  const hz = new Float32Array(curve.length);
+  for (let i = 0; i < curve.length; i++) hz[i] = baseHz * 2 ** (((curve[i] - 3) * stepSt) / 12);
+
+  const osc = ctx.createOscillator();
+  osc.type = 'sawtooth';
+  osc.frequency.setValueAtTime(hz[0], t0);
+  osc.frequency.setValueCurveAtTime(hz, t0, dur);
+
+  // Two formants of an open "a" vowel plus a soft direct path
+  const out = ctx.createGain();
+  out.gain.value = 0;
+  for (const [f, q, g] of [[750, 5, 1.0], [1150, 7, 0.55], [2600, 9, 0.18]]) {
+    const bp = ctx.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.value = f;
+    bp.Q.value = q;
+    const gain = ctx.createGain();
+    gain.gain.value = g;
+    osc.connect(bp).connect(gain).connect(out);
+  }
+  const direct = ctx.createBiquadFilter();
+  direct.type = 'lowpass';
+  direct.frequency.value = 600;
+  const dg = ctx.createGain();
+  dg.gain.value = 0.25;
+  osc.connect(direct).connect(dg).connect(out);
+
+  out.gain.setValueAtTime(0, t0);
+  out.gain.linearRampToValueAtTime(volume, t0 + 0.035);
+  out.gain.setValueAtTime(volume, t0 + dur - 0.06);
+  out.gain.linearRampToValueAtTime(0, t0 + dur);
+
+  out.connect(ctx.destination);
+  if (analysisNode) out.connect(analysisNode);
+  osc.start(t0);
+  osc.stop(t0 + dur + 0.02);
+  osc.onended = () => out.disconnect();
+  return dur + 0.05;
+}
+
+return { toneDuration, speakTone };
+})();
+
+const __m6 = (() => {
+
+// Short synthesised sound effects (no audio files to load).
+
+function noiseBuffer(ctx, seconds) {
+  const b = ctx.createBuffer(1, Math.floor(ctx.sampleRate * seconds), ctx.sampleRate);
+  const d = b.getChannelData(0);
+  for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+  return b;
+}
+
+function playWhoosh(ctx) {
+  const t = ctx.currentTime;
+  const src = ctx.createBufferSource();
+  src.buffer = noiseBuffer(ctx, 0.4);
+  const bp = ctx.createBiquadFilter();
+  bp.type = 'bandpass';
+  bp.Q.value = 1.2;
+  bp.frequency.setValueAtTime(400, t);
+  bp.frequency.exponentialRampToValueAtTime(2400, t + 0.3);
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(0.18, t + 0.08);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + 0.38);
+  src.connect(bp).connect(g).connect(ctx.destination);
+  src.start(t);
+}
+
+function playSplash(ctx) {
+  const t = ctx.currentTime;
+  const src = ctx.createBufferSource();
+  src.buffer = noiseBuffer(ctx, 0.6);
+  const lp = ctx.createBiquadFilter();
+  lp.type = 'lowpass';
+  lp.frequency.setValueAtTime(3000, t);
+  lp.frequency.exponentialRampToValueAtTime(300, t + 0.5);
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0.25, t);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + 0.55);
+  src.connect(lp).connect(g).connect(ctx.destination);
+  src.start(t);
+}
+
+/** Rising pentatonic chime for a caught fish. */
+function playSuccess(ctx) {
+  const t = ctx.currentTime;
+  [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => {
+    const o = ctx.createOscillator();
+    o.type = 'triangle';
+    o.frequency.value = f;
+    const g = ctx.createGain();
+    const s = t + i * 0.09;
+    g.gain.setValueAtTime(0.0001, s);
+    g.gain.exponentialRampToValueAtTime(0.16, s + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, s + 0.5);
+    o.connect(g).connect(ctx.destination);
+    o.start(s);
+    o.stop(s + 0.55);
+  });
+}
+
+/** Soft falling two-note for trash. Gentle on purpose. */
+function playTrash(ctx) {
+  const t = ctx.currentTime;
+  [392, 330].forEach((f, i) => {
+    const o = ctx.createOscillator();
+    o.type = 'sine';
+    o.frequency.value = f;
+    const g = ctx.createGain();
+    const s = t + i * 0.16;
+    g.gain.setValueAtTime(0.0001, s);
+    g.gain.exponentialRampToValueAtTime(0.12, s + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, s + 0.35);
+    o.connect(g).connect(ctx.destination);
+    o.start(s);
+    o.stop(s + 0.4);
+  });
+}
+
+return { playWhoosh, playSplash, playSuccess, playTrash };
+})();
+
+const __m7 = (() => {
+
+// The lake scene: fisherman, rod, line, four floating targets, cast animation.
+// Pure canvas drawing; game logic tells it the power level and when to cast.
+
+const C = {
+  skyTop: '#cfe3df', skyBottom: '#eef2ea', sun: '#f6e7b8',
+  mountainFar: '#b7cbc6', mountainNear: '#8fb0aa',
+  waterTop: '#5d9e98', waterBottom: '#1f5a5f', shimmer: 'rgba(255,255,255,0.22)',
+  dock: '#8a6a4a', dockDark: '#6a4f37', dockLight: '#a8835d',
+  hat: '#d9b56a', hatShade: '#b48f48', jacket: '#2f4f7a', jacketDark: '#233d61', skin: '#e2b48f', pants: '#3b3b44',
+  rod: '#5a3b22', line: 'rgba(40,40,40,0.75)', bobberRed: '#d2412f', bobberWhite: '#f7f7f2',
+  koi: '#e2582f', koiLight: '#f39a55', koiBelly: '#fbe1c4', eye: '#1b1b1b',
+  bottle: 'rgba(150,205,225,0.85)', bottleCap: '#2f6fb0', can: '#c9473b', canMetal: '#c9cdd2',
+  bag: 'rgba(245,245,240,0.85)', bagLine: 'rgba(160,165,170,0.9)', boot: '#5b4636', bootSole: '#2e241c',
+  reed: '#5f7d4a', reedTip: '#8a6a3a', ripple: 'rgba(255,255,255,0.55)', splash: 'rgba(235,248,250,0.9)',
+  sparkle: '#ffd866',
+};
+
+const ease = (u) => (u < 0.5 ? 2 * u * u : 1 - (-2 * u + 2) ** 2 / 2);
+const lerp = (a, b, u) => a + (b - a) * u;
+const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+
+class FishingScene {
+  constructor(canvas) {
+    this.canvas = canvas;
+    this.ctx = canvas.getContext('2d');
+    this.t = 0;
+    this.power = 0;
+    this.shownPower = 0;
+    this.energy = 0;
+    this.mood = 'idle';
+    this.slots = [];
+    this.targets = [];
+    this.ripples = [];
+    this.drops = [];
+    this.cast = null;
+    this.catch = null;
+    this.reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    this.clouds = [0.12, 0.45, 0.78].map((x, i) => ({ x, y: 0.08 + i * 0.05, w: 0.16 + i * 0.03, v: 0.004 + i * 0.002 }));
+    this.resize();
+    window.addEventListener('resize', () => this.resize());
+    if (window.ResizeObserver) new ResizeObserver(() => this.resize()).observe(canvas);
+  }
+
+  resize() {
+    const rect = this.canvas.getBoundingClientRect();
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const w = Math.max(1, Math.round(rect.width * dpr));
+    const h = Math.max(1, Math.round(rect.height * dpr));
+    if (this.canvas.width !== w || this.canvas.height !== h) {
+      this.canvas.width = w;
+      this.canvas.height = h;
+    }
+    this.dpr = dpr;
+    this.W = rect.width;
+    this.H = rect.height;
+    this.layout();
+  }
+
+  layout() {
+    const { W, H } = this;
+    this.s = Math.max(0.5, Math.min(W / 860, H / 480));
+    const s = this.s;
+    this.horizon = H * (W / H > 1.3 ? 0.36 : 0.3);
+    this.dockW = Math.max(120 * s, W * 0.2);
+    this.dockY = H - 70 * s;
+    this.seat = { x: this.dockW * 0.5, y: this.dockY };
+    this.hand = { x: this.seat.x + 30 * s, y: this.dockY - 48 * s };
+    this.rodLen = Math.min(240 * s, (this.hand.y - 10) * 1.05, W * 0.42);
+    const waterH = H - this.horizon;
+    this.bobber = { x: this.dockW + Math.min(70 * s, W * 0.08), y: this.horizon + waterH * 0.5 };
+    // Target slots across the open water
+    const x0 = this.dockW + Math.max(90 * s, W * 0.1), x1 = W - 40 * s;
+    const depths = this.depths || [0.32, 0.62, 0.42, 0.7];
+    this.slotPos = [0, 1, 2, 3].map((i) => ({
+      x: lerp(x0, x1, i / 3) + (this.jitter ? this.jitter[i] : 0) * s,
+      y: this.horizon + waterH * depths[i],
+    }));
+  }
+
+  /** New round: 4 kinds, e.g. ['bag','fish','can','bottle']. */
+  setRound(slots) {
+    this.slots = slots;
+    this.depths = [0, 1, 2, 3].map(() => 0.26 + Math.random() * 0.5);
+    this.jitter = [0, 1, 2, 3].map(() => (Math.random() - 0.5) * 30);
+    this.layout();
+    this.targets = slots.map((kind, i) => ({ kind, i, born: this.t + i * 0.08, phase: Math.random() * 6.28, gone: false }));
+    this.catch = null;
+    this.cast = null;
+    this.power = 0;
+  }
+
+  setCharge(power, energy, mood) {
+    this.power = power;
+    this.energy = energy;
+    this.mood = mood;
+  }
+
+  /** Cast to slot index. Resolves after the catch has been reeled in. */
+  castTo(index, onSplash) {
+    return new Promise((resolve) => {
+      this.cast = { index, start: this.t, onSplash, resolve, splashed: false };
+    });
+  }
+
+  // ---------- frame ----------
+  frame(dt) {
+    this.t += dt;
+    this.shownPower += (this.power - this.shownPower) * Math.min(1, dt * 10);
+    const ctx = this.ctx;
+    ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+    this.drawBackdrop(ctx);
+    this.drawWater(ctx);
+    this.updateRipples(dt);
+    this.drawTargets(ctx);
+    this.drawReeds(ctx);
+    const rod = this.rodState();
+    this.drawLine(ctx, rod);
+    this.drawDock(ctx);
+    this.drawFisherman(ctx, rod);
+    this.drawRod(ctx, rod);
+    this.drawCatch(ctx, rod);
+    this.drawDrops(ctx, dt);
+  }
+
+  // ---------- rod + cast state ----------
+  rodState() {
+    const s = this.s;
+    const idle = -0.95;
+    let angle = idle - this.shownPower * 0.55;
+    let bend = 0.05 + this.shownPower * 0.2;
+    let hook = null;
+    const wob = this.reduced ? 0 : this.energy * 0.03 * Math.sin(this.t * 28) + (this.mood === 'conflict' ? 0.025 * Math.sin(this.t * 55) : 0);
+    angle += wob;
+
+    const c = this.cast;
+    if (c) {
+      const e = this.t - c.start;
+      const target = this.slotPos[c.index];
+      const T = { wind: 0.35, throw: 0.2, fly: 0.65, sink: 0.45, pause: 0.3, reel: 0.85 };
+      const t1 = T.wind, t2 = t1 + T.throw, t3 = t2 + T.fly, t4 = t3 + T.sink, t5 = t4 + T.pause, t6 = t5 + T.reel;
+      if (e < t1) {
+        const u = ease(e / t1);
+        angle = lerp(idle - 0.55, idle - 0.95, u);
+        bend = lerp(0.25, 0.32, u);
+      } else if (e < t2) {
+        const u = ease((e - t1) / T.throw);
+        angle = lerp(idle - 0.95, idle + 0.4, u);
+        bend = lerp(0.32, -0.12, u);
+      } else {
+        angle = idle + 0.25;
+        bend = 0.04;
+      }
+      const tip = this.tipFor(angle, bend);
+      if (e >= t2 && e < t3) {
+        const u = (e - t2) / T.fly;
+        const arc = Math.min(this.H * 0.35, 200 * s);
+        hook = { x: lerp(tip.x, target.x, u), y: lerp(tip.y, target.y, u) - arc * 4 * u * (1 - u), flying: true };
+      } else if (e >= t3 && e < t5) {
+        if (!c.splashed) {
+          c.splashed = true;
+          this.splash(target.x, target.y);
+          c.onSplash && c.onSplash();
+        }
+        const u = (e - t3) / (T.sink + T.pause);
+        hook = { x: target.x, y: target.y + 6 * s * Math.sin(Math.min(1, u * 2) * Math.PI) };
+        const tg = this.targets[c.index];
+        if (tg) tg.tug = Math.sin(u * Math.PI * 3) * 4 * s;
+        bend = 0.1 + 0.08 * Math.sin(u * Math.PI * 4);
+      } else if (e >= t5 && e < t6) {
+        const u = ease((e - t5) / T.reel);
+        const hang = this.hangPoint(this.tipFor(angle, 0.22));
+        if (this.targets[c.index]) this.targets[c.index].gone = true;
+        this.catch = { kind: this.slots[c.index], x: lerp(target.x, hang.x, u), y: lerp(target.y, hang.y, u) - Math.sin(u * Math.PI) * 60 * s, since: this.t };
+        angle = lerp(idle + 0.25, idle - 0.25, u);
+        bend = lerp(0.1, 0.24, u);
+        if (Math.random() < 0.3 && u < 0.3) this.drops.push(this.drop(this.catch.x, this.catch.y));
+      } else if (e >= t6) {
+        angle = idle - 0.25;
+        bend = 0.22;
+        const hang = this.hangPoint(this.tipFor(angle, bend));
+        this.catch = { ...(this.catch || { kind: this.slots[c.index], since: this.t }), x: hang.x, y: hang.y };
+        if (!c.done) { c.done = true; c.resolve(); }
+      }
+      return { angle, bend, tip: this.tipFor(angle, bend), hook, casting: true, phaseT: e };
+    }
+    if (this.catch) {
+      angle = idle - 0.25;
+      bend = 0.22;
+      const tip = this.tipFor(angle, bend);
+      const hang = this.hangPoint(tip);
+      this.catch.x = hang.x;
+      this.catch.y = hang.y;
+      return { angle, bend, tip, hook: null, casting: false };
+    }
+    return { angle, bend, tip: this.tipFor(angle, bend), hook: null, casting: false };
+  }
+
+  hangPoint(tip) { return { x: tip.x + 4 * this.s, y: tip.y + 86 * this.s }; }
+
+  rodBase(angle) {
+    const L = this.rodLen;
+    return { x: this.hand.x - Math.cos(angle) * L * 0.12, y: this.hand.y - Math.sin(angle) * L * 0.12 };
+  }
+
+  tipFor(angle, bend) {
+    const L = this.rodLen, B = this.rodBase(angle);
+    const dx = Math.cos(angle), dy = Math.sin(angle);
+    const px = -dy, py = dx; // perpendicular, toward forward-down for an up-right rod
+    return { x: B.x + dx * L * 0.97 + px * bend * L * 0.55, y: B.y + dy * L * 0.97 + py * bend * L * 0.55 };
+  }
+
+  // ---------- scenery ----------
+  drawBackdrop(ctx) {
+    const { W, H, horizon, s } = this;
+    const g = ctx.createLinearGradient(0, 0, 0, horizon);
+    g.addColorStop(0, C.skyTop);
+    g.addColorStop(1, C.skyBottom);
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, horizon + 2);
+
+    ctx.fillStyle = C.sun;
+    ctx.globalAlpha = 0.9;
+    ctx.beginPath();
+    ctx.arc(W * 0.78, horizon * 0.42, 34 * s, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+
+    // Drifting clouds
+    ctx.fillStyle = 'rgba(255,255,255,0.75)';
+    for (const c of this.clouds) {
+      const x = (((c.x + this.t * c.v) % 1.3) - 0.15) * W;
+      const y = c.y * H, w = c.w * W * 0.6;
+      ctx.beginPath();
+      ctx.ellipse(x, y, w * 0.5, 10 * s, 0, 0, Math.PI * 2);
+      ctx.ellipse(x + w * 0.18, y - 7 * s, w * 0.28, 11 * s, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Ink-wash mountain ridges
+    this.ridge(ctx, horizon, 0.62, C.mountainFar, 1.7, 0.3);
+    this.ridge(ctx, horizon, 0.38, C.mountainNear, 2.9, 1.7);
+  }
+
+  ridge(ctx, base, height, color, freq, seed) {
+    const { W, H } = this;
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(0, base + 1);
+    const peak = base * height;
+    for (let x = 0; x <= W; x += 8) {
+      const u = x / W;
+      const y = base - peak * (0.35 + 0.35 * Math.sin(u * freq * 3.1 + seed) * Math.sin(u * 7.3 + seed * 2) + 0.3 * Math.sin(u * freq * 1.3 + seed) ** 2);
+      ctx.lineTo(x, Math.min(base, y));
+    }
+    ctx.lineTo(W, base + 1);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  drawWater(ctx) {
+    const { W, H, horizon, s } = this;
+    const g = ctx.createLinearGradient(0, horizon, 0, H);
+    g.addColorStop(0, C.waterTop);
+    g.addColorStop(1, C.waterBottom);
+    ctx.fillStyle = g;
+    ctx.fillRect(0, horizon, W, H - horizon);
+    // Shimmer strokes
+    ctx.strokeStyle = C.shimmer;
+    ctx.lineWidth = 1.5 * s;
+    ctx.lineCap = 'round';
+    for (let i = 0; i < 14; i++) {
+      const y = horizon + ((i + 0.5) / 14) * (H - horizon);
+      const off = this.reduced ? 0 : Math.sin(this.t * 0.6 + i * 1.7) * 30 * s;
+      const len = (20 + (i % 4) * 14) * s * (0.6 + y / H);
+      for (let k = 0; k < 3; k++) {
+        const x = ((i * 137 + k * 311) % 1000) / 1000 * W + off;
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.lineTo(x + len, y);
+        ctx.stroke();
+      }
+    }
+  }
+
+  drawReeds(ctx) {
+    const { s, dockW, dockY, H } = this;
+    ctx.lineCap = 'round';
+    for (let i = 0; i < 9; i++) {
+      const x = dockW + 6 * s + (i % 5) * 9 * s - (i > 4 ? 30 * s : 0);
+      const h = (60 + ((i * 37) % 40)) * s;
+      const sway = this.reduced ? 0 : Math.sin(this.t * 1.3 + i) * 5 * s;
+      ctx.strokeStyle = C.reed;
+      ctx.lineWidth = 2.2 * s;
+      ctx.beginPath();
+      ctx.moveTo(x, H);
+      ctx.quadraticCurveTo(x + sway * 0.3, H - h * 0.6, x + sway, H - h);
+      ctx.stroke();
+      if (i % 3 === 0) {
+        ctx.fillStyle = C.reedTip;
+        ctx.beginPath();
+        ctx.ellipse(x + sway, H - h - 6 * s, 2.6 * s, 8 * s, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    void dockY;
+  }
+
+  drawDock(ctx) {
+    const { s, dockW, dockY, H } = this;
+    // Posts
+    ctx.fillStyle = C.dockDark;
+    for (const fx of [0.25, 0.85]) ctx.fillRect(dockW * fx - 5 * s, dockY, 10 * s, H - dockY);
+    // Planks
+    ctx.fillStyle = C.dock;
+    ctx.fillRect(0, dockY - 4 * s, dockW + 10 * s, 14 * s);
+    ctx.fillStyle = C.dockLight;
+    ctx.fillRect(0, dockY - 4 * s, dockW + 10 * s, 3 * s);
+    ctx.strokeStyle = C.dockDark;
+    ctx.lineWidth = 1;
+    for (let x = 24 * s; x < dockW; x += 26 * s) {
+      ctx.beginPath();
+      ctx.moveTo(x, dockY - 4 * s);
+      ctx.lineTo(x, dockY + 10 * s);
+      ctx.stroke();
+    }
+  }
+
+  drawFisherman(ctx, rod) {
+    const { s, seat, hand } = this;
+    const x = seat.x, y = seat.y - 4 * s;
+    // Legs over the dock edge
+    ctx.strokeStyle = C.pants;
+    ctx.lineWidth = 9 * s;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(x + 2 * s, y - 6 * s);
+    ctx.lineTo(x + 26 * s, y - 4 * s);
+    ctx.lineTo(x + 30 * s, y + 24 * s);
+    ctx.stroke();
+    // Body
+    ctx.fillStyle = C.jacket;
+    ctx.beginPath();
+    ctx.moveTo(x - 18 * s, y - 2 * s);
+    ctx.quadraticCurveTo(x - 20 * s, y - 44 * s, x - 2 * s, y - 52 * s);
+    ctx.quadraticCurveTo(x + 16 * s, y - 50 * s, x + 16 * s, y - 2 * s);
+    ctx.closePath();
+    ctx.fill();
+    // Arm to the hand on the rod
+    const sh = { x: x + 4 * s, y: y - 40 * s };
+    ctx.strokeStyle = C.jacketDark;
+    ctx.lineWidth = 8 * s;
+    ctx.beginPath();
+    ctx.moveTo(sh.x, sh.y);
+    ctx.quadraticCurveTo(sh.x + 14 * s, sh.y + 10 * s, hand.x, hand.y);
+    ctx.stroke();
+    ctx.fillStyle = C.skin;
+    ctx.beginPath();
+    ctx.arc(hand.x, hand.y, 4.5 * s, 0, Math.PI * 2);
+    ctx.fill();
+    // Head
+    const lean = rod.casting ? Math.sin(Math.min(1, rod.phaseT / 0.55) * Math.PI) * 4 * s : this.shownPower * -3 * s;
+    const hx = x - 2 * s + lean, hy = y - 62 * s;
+    ctx.fillStyle = C.skin;
+    ctx.beginPath();
+    ctx.arc(hx, hy, 10 * s, 0, Math.PI * 2);
+    ctx.fill();
+    // Conical bamboo hat
+    ctx.fillStyle = C.hat;
+    ctx.beginPath();
+    ctx.moveTo(hx - 26 * s, hy - 3 * s);
+    ctx.lineTo(hx, hy - 24 * s);
+    ctx.lineTo(hx + 26 * s, hy - 3 * s);
+    ctx.quadraticCurveTo(hx, hy + 2 * s, hx - 26 * s, hy - 3 * s);
+    ctx.fill();
+    ctx.strokeStyle = C.hatShade;
+    ctx.lineWidth = 1.2 * s;
+    for (const k of [-0.5, 0, 0.5]) {
+      ctx.beginPath();
+      ctx.moveTo(hx, hy - 24 * s);
+      ctx.lineTo(hx + k * 40 * s, hy - 2 * s);
+      ctx.stroke();
+    }
+  }
+
+  drawRod(ctx, rod) {
+    const B = this.rodBase(rod.angle), tip = rod.tip;
+    const L = this.rodLen;
+    const dx = Math.cos(rod.angle), dy = Math.sin(rod.angle);
+    const cx = B.x + dx * L * 0.55 + -dy * rod.bend * L * 0.22;
+    const cy = B.y + dy * L * 0.55 + dx * rod.bend * L * 0.22;
+    ctx.strokeStyle = C.rod;
+    ctx.lineCap = 'round';
+    const N = 12;
+    let px = B.x, py = B.y;
+    for (let i = 1; i <= N; i++) {
+      const u = i / N;
+      const x = (1 - u) * (1 - u) * B.x + 2 * (1 - u) * u * cx + u * u * tip.x;
+      const y = (1 - u) * (1 - u) * B.y + 2 * (1 - u) * u * cy + u * u * tip.y;
+      ctx.lineWidth = lerp(6, 1.6, u) * this.s;
+      ctx.beginPath();
+      ctx.moveTo(px, py);
+      ctx.lineTo(x, y);
+      ctx.stroke();
+      px = x; py = y;
+    }
+  }
+
+  drawLine(ctx, rod) {
+    const { s } = this;
+    const tip = rod.tip;
+    ctx.strokeStyle = C.line;
+    ctx.lineWidth = 1.2;
+    if (rod.hook) {
+      const h = rod.hook;
+      ctx.beginPath();
+      ctx.moveTo(tip.x, tip.y);
+      ctx.quadraticCurveTo((tip.x + h.x) / 2, Math.max(tip.y, h.y) + (h.flying ? 10 : 25) * s, h.x, h.y);
+      ctx.stroke();
+      ctx.strokeStyle = '#555';
+      ctx.lineWidth = 2 * s;
+      ctx.beginPath();
+      ctx.arc(h.x, h.y + 4 * s, 4 * s, 0, Math.PI);
+      ctx.stroke();
+      return;
+    }
+    if (this.catch) {
+      ctx.beginPath();
+      ctx.moveTo(tip.x, tip.y);
+      ctx.lineTo(this.catch.x, this.catch.y - 16 * s);
+      ctx.stroke();
+      return;
+    }
+    if (rod.casting) return;
+    // Idle: line to the bobber, tighter as power builds
+    const b = this.bobber;
+    const by = b.y + Math.sin(this.t * 2.2) * 2 * s;
+    const sag = (1 - this.shownPower) * 40 * s + 8 * s;
+    ctx.beginPath();
+    ctx.moveTo(tip.x, tip.y);
+    ctx.quadraticCurveTo((tip.x + b.x) / 2, Math.max(tip.y, by) + sag - 30 * s, b.x, by - 8 * s);
+    ctx.stroke();
+    // Bobber
+    ctx.fillStyle = C.bobberWhite;
+    ctx.beginPath();
+    ctx.ellipse(b.x, by - 3 * s, 5 * s, 6 * s, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = C.bobberRed;
+    ctx.beginPath();
+    ctx.ellipse(b.x, by - 8 * s, 5 * s, 4 * s, 0, Math.PI, Math.PI * 2);
+    ctx.fill();
+    // Voice ripples at the bobber: stronger with energy and match
+    const rate = this.energy * (0.5 + this.shownPower * 3);
+    if (!this.reduced && Math.random() < rate * 0.12) this.ripples.push({ x: b.x, y: by, r: 4 * s, life: 1, max: (16 + 40 * this.shownPower) * s });
+  }
+
+  // ---------- targets ----------
+  drawTargets(ctx) {
+    const { s } = this;
+    for (const tg of this.targets) {
+      if (tg.gone) continue;
+      const p = this.slotPos[tg.i];
+      const age = this.t - tg.born;
+      if (age < 0) continue;
+      const appear = clamp(age / 0.45, 0, 1);
+      const bob = (this.reduced ? 0 : Math.sin(this.t * 1.6 + tg.phase) * 3 * s) + (tg.tug || 0);
+      const y = p.y + bob + (1 - ease(appear)) * 18 * s;
+      ctx.globalAlpha = appear;
+      // ring at the waterline
+      ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+      ctx.lineWidth = 1.2 * s;
+      ctx.beginPath();
+      ctx.ellipse(p.x, y + 2 * s, 44 * s, 8 * s, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      // above-water part only
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(p.x - 80 * s, y - 120 * s, 160 * s, 120 * s + 2 * s);
+      ctx.clip();
+      this.drawObject(ctx, tg.kind, p.x, y, s * 1.4, false);
+      ctx.restore();
+      // faint reflection
+      ctx.save();
+      ctx.globalAlpha = appear * 0.18;
+      ctx.translate(p.x, y + 3 * s);
+      ctx.scale(1, -0.5);
+      ctx.beginPath();
+      ctx.rect(-80 * s, -120 * s, 160 * s, 120 * s);
+      ctx.clip();
+      this.drawObject(ctx, tg.kind, 0, 0, s * 1.4, false);
+      ctx.restore();
+      ctx.globalAlpha = 1;
+      if (tg.kind === 'fish' && !this.reduced && Math.random() < 0.004) {
+        this.ripples.push({ x: p.x + 20 * s, y: y, r: 4 * s, life: 1, max: 30 * s });
+      }
+    }
+  }
+
+  /** Draw an object centred horizontally at x with its waterline at y. full = whole body (caught). */
+  drawObject(ctx, kind, x, y, s, full, swing = 0) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(swing);
+    const flap = full ? Math.sin(this.t * 14) * 0.25 : Math.sin(this.t * 3) * 0.15;
+    switch (kind) {
+      case 'fish': {
+        if (full) ctx.rotate(-Math.PI / 2 + 0.15);
+        ctx.fillStyle = C.koi;
+        // tail
+        ctx.save();
+        ctx.translate(-30 * s, -2 * s);
+        ctx.rotate(flap);
+        ctx.beginPath();
+        ctx.moveTo(4 * s, 0);
+        ctx.lineTo(-16 * s, -14 * s);
+        ctx.quadraticCurveTo(-10 * s, 0, -16 * s, 14 * s);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+        // body
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 34 * s, 14 * s, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = C.koiBelly;
+        ctx.beginPath();
+        ctx.ellipse(2 * s, 6 * s, 26 * s, 6 * s, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = C.koiLight;
+        ctx.beginPath();
+        ctx.ellipse(-4 * s, -5 * s, 12 * s, 5 * s, 0.2, 0, Math.PI * 2);
+        ctx.fill();
+        // dorsal fin
+        ctx.fillStyle = C.koi;
+        ctx.beginPath();
+        ctx.moveTo(-12 * s, -12 * s);
+        ctx.quadraticCurveTo(-2 * s, -26 * s, 10 * s, -13 * s);
+        ctx.closePath();
+        ctx.fill();
+        // eye
+        ctx.fillStyle = '#fff';
+        ctx.beginPath();
+        ctx.arc(22 * s, -3 * s, 3.6 * s, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = C.eye;
+        ctx.beginPath();
+        ctx.arc(23 * s, -3 * s, 2 * s, 0, Math.PI * 2);
+        ctx.fill();
+        break;
+      }
+      case 'bottle': {
+        ctx.rotate(full ? -1.2 : -0.12);
+        ctx.fillStyle = C.bottle;
+        ctx.beginPath();
+        ctx.roundRect ? ctx.roundRect(-26 * s, -10 * s, 40 * s, 20 * s, 7 * s) : ctx.rect(-26 * s, -10 * s, 40 * s, 20 * s);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(14 * s, -8 * s);
+        ctx.quadraticCurveTo(22 * s, -5 * s, 24 * s, -4 * s);
+        ctx.lineTo(24 * s, 4 * s);
+        ctx.quadraticCurveTo(22 * s, 5 * s, 14 * s, 8 * s);
+        ctx.fill();
+        ctx.fillStyle = C.bottleCap;
+        ctx.fillRect(24 * s, -4.5 * s, 6 * s, 9 * s);
+        ctx.fillStyle = 'rgba(255,255,255,0.6)';
+        ctx.fillRect(-20 * s, -7 * s, 26 * s, 3 * s);
+        break;
+      }
+      case 'can': {
+        ctx.rotate(full ? -1.4 : 0.1);
+        ctx.fillStyle = C.can;
+        ctx.fillRect(-18 * s, -11 * s, 36 * s, 22 * s);
+        ctx.fillStyle = C.canMetal;
+        ctx.beginPath();
+        ctx.ellipse(18 * s, 0, 4 * s, 11 * s, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,255,0.35)';
+        ctx.fillRect(-14 * s, -8 * s, 26 * s, 3 * s);
+        ctx.fillStyle = 'rgba(0,0,0,0.15)';
+        ctx.fillRect(-18 * s, 4 * s, 36 * s, 7 * s);
+        break;
+      }
+      case 'bag': {
+        const w = full ? Math.sin(this.t * 6) * 3 * s : Math.sin(this.t * 2) * 2 * s;
+        ctx.strokeStyle = C.bagLine;
+        ctx.lineWidth = 3 * s;
+        // two loop handles
+        for (const hx of [-9, 9]) {
+          ctx.beginPath();
+          ctx.ellipse(hx * s + w * 0.3, -20 * s, 5 * s, 8 * s, hx < 0 ? -0.3 : 0.3, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+        ctx.fillStyle = C.bag;
+        ctx.beginPath();
+        ctx.moveTo(-22 * s, 6 * s);
+        ctx.quadraticCurveTo(-26 * s + w, -10 * s, -15 * s, -14 * s);
+        ctx.lineTo(15 * s, -14 * s);
+        ctx.quadraticCurveTo(26 * s - w, -10 * s, 22 * s, 6 * s);
+        ctx.quadraticCurveTo(0, 12 * s, -22 * s, 6 * s);
+        ctx.fill();
+        ctx.lineWidth = 1.2 * s;
+        ctx.stroke();
+        // creases and a faded printed stripe
+        ctx.beginPath();
+        ctx.moveTo(-12 * s, -8 * s);
+        ctx.quadraticCurveTo(-4 * s, -2 * s, -10 * s, 4 * s);
+        ctx.moveTo(8 * s, -9 * s);
+        ctx.quadraticCurveTo(14 * s, -2 * s, 9 * s, 5 * s);
+        ctx.stroke();
+        ctx.fillStyle = 'rgba(210,65,47,0.35)';
+        ctx.fillRect(-6 * s, -6 * s, 10 * s, 6 * s);
+        break;
+      }
+      case 'boot': {
+        ctx.rotate(full ? 0.3 : -0.05);
+        ctx.fillStyle = C.boot;
+        ctx.beginPath();
+        ctx.moveTo(-14 * s, -30 * s);
+        ctx.lineTo(4 * s, -30 * s);
+        ctx.lineTo(6 * s, -6 * s);
+        ctx.quadraticCurveTo(26 * s, -6 * s, 28 * s, 4 * s);
+        ctx.lineTo(28 * s, 8 * s);
+        ctx.lineTo(-16 * s, 8 * s);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = C.bootSole;
+        ctx.fillRect(-16 * s, 6 * s, 44 * s, 5 * s);
+        ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+        ctx.lineWidth = 1.5 * s;
+        ctx.beginPath();
+        ctx.moveTo(-12 * s, -24 * s);
+        ctx.lineTo(2 * s, -24 * s);
+        ctx.stroke();
+        break;
+      }
+    }
+    ctx.restore();
+  }
+
+  drawCatch(ctx) {
+    const c = this.catch;
+    if (!c) return;
+    const { s } = this;
+    const swing = this.reduced ? 0 : Math.sin(this.t * 3.2) * 0.12;
+    this.drawObject(ctx, c.kind, c.x, c.y, s * 1.35, true, swing);
+    if (c.kind === 'fish' && this.cast && this.cast.done) {
+      // sparkles
+      ctx.fillStyle = C.sparkle;
+      for (let i = 0; i < 6; i++) {
+        const a = this.t * 1.5 + (i * Math.PI) / 3;
+        const r = (46 + Math.sin(this.t * 4 + i) * 6) * s;
+        const x = c.x + Math.cos(a) * r, y = c.y + Math.sin(a) * r * 0.8;
+        this.star(ctx, x, y, (3 + (i % 2) * 2) * s);
+      }
+    }
+  }
+
+  star(ctx, x, y, r) {
+    ctx.beginPath();
+    for (let i = 0; i < 8; i++) {
+      const a = (i * Math.PI) / 4;
+      const rr = i % 2 ? r * 0.4 : r;
+      ctx.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr);
+    }
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // ---------- water effects ----------
+  splash(x, y) {
+    const s = this.s;
+    for (let k = 0; k < 3; k++) this.ripples.push({ x, y, r: (6 + k * 8) * s, life: 1, max: (50 + k * 20) * s });
+    for (let i = 0; i < 16; i++) this.drops.push(this.drop(x, y));
+  }
+
+  drop(x, y) {
+    const s = this.s;
+    return { x, y, vx: (Math.random() - 0.5) * 160 * s, vy: (-120 - Math.random() * 160) * s, life: 1, y0: y };
+  }
+
+  updateRipples(dt) {
+    const ctx = this.ctx;
+    ctx.lineWidth = 1.5 * this.s;
+    this.ripples = this.ripples.filter((r) => r.life > 0);
+    for (const r of this.ripples) {
+      r.life -= dt * 0.9;
+      r.r += (r.max - r.r) * Math.min(1, dt * 2.5);
+      ctx.strokeStyle = `rgba(255,255,255,${0.55 * Math.max(0, r.life)})`;
+      ctx.beginPath();
+      ctx.ellipse(r.x, r.y, r.r, r.r * 0.25, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+  }
+
+  drawDrops(ctx, dt) {
+    ctx.fillStyle = C.splash;
+    this.drops = this.drops.filter((d) => d.life > 0 && d.y <= d.y0 + 2);
+    for (const d of this.drops) {
+      d.vy += 520 * this.s * dt;
+      d.x += d.vx * dt;
+      d.y += d.vy * dt;
+      d.life -= dt;
+      ctx.beginPath();
+      ctx.arc(d.x, d.y, 2.2 * this.s, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+}
+
+return { FishingScene };
+})();
+
+const __m9 = (() => {
+
+// Every player-facing string lives here. The UI must stay Chinese only
+// (pinyin allowed); tests/ui-language.test.mjs checks this file and index.html.
+
+const S = {
+  title: '声调钓鱼',
+  subtitle: '说对声调，钓到鱼儿',
+  start: '开始游戏',
+  privacy: '你的声音仅用于实时声调分析，不会上传到服务器。',
+
+  micAsk: '请允许使用麦克风。',
+  micDenied: '需要使用麦克风才能进行声调练习。',
+  micInsecure: '当前页面无法使用麦克风。请通过安全网址或本地服务器打开游戏。',
+  retry: '重新尝试',
+  useDemo: '使用示范声音',
+  demoBadge: '示范模式',
+
+  score: '得分',
+  combo: '连胜',
+  match: '匹配度',
+  power: '声调蓄力',
+  targetTone: '目标声调',
+  yourVoice: '你的发音',
+  high: '高',
+  low: '低',
+
+  sayIt: '请读出这个字',
+  listening: '正在听……',
+  veryClose: '非常接近！',
+  good: '很好，保持住！',
+  partial: '继续，注意声调走向',
+  watchContour: '注意声调变化',
+  sayAgain: '请再说一次',
+  readyCast: '准备投钩！',
+  caught: '钓到了！',
+  toneCorrect: '声调正确！',
+  great: '太棒了！',
+  caughtTrash: '钓错了！',
+  tryAgain: '再试一次',
+  next: '下一题',
+  skip: '跳过',
+  listen: '听声调示范',
+  demoRight: '示范正确发音',
+  demoWrong: '示范错误发音',
+  chancesLeft: (n) => `还有 ${n} 次机会`,
+  targetIs: (name) => `目标声调：${name}`,
+  yoursIs: (name) => `你的声调：${name}`,
+
+  settings: '设置',
+  back: '返回',
+  close: '完成',
+  strictness: '判定标准',
+  lenient: '宽松',
+  standard: '标准',
+  strict: '严格',
+  sensitivity: '麦克风灵敏度',
+  sensHigh: '高',
+  sensMedium: '中',
+  sensLow: '低',
+  locked: '敬请期待',
+  chooseLevel: '选择关卡',
+  mic: '麦克风',
+};
+
+return { S };
+})();
+
+const __m10 = (() => {
+
+// Splits the frame stream into utterances: onset after N voiced frames,
+// release after a stretch of silence or a hard length limit.
+
+class UtteranceSegmenter {
+  constructor(cfg) {
+    this.cfg = cfg;
+    this.reset();
+  }
+
+  reset() {
+    this.active = false;
+    this.pending = [];
+    this.frames = [];
+    this.startT = 0;
+    this.lastVoicedT = 0;
+  }
+
+  /**
+   * Push one analysed frame. Returns null, or an event:
+   *  { type: 'start' } | { type: 'update', frames } | { type: 'end', frames }
+   */
+  push(t, r) {
+    const frame = { t, f0: r.f0, clarity: r.clarity, rms: r.rms, voiced: r.voiced };
+
+    if (!this.active) {
+      if (r.voiced) {
+        this.pending.push(frame);
+        if (this.pending.length >= this.cfg.onsetFrames) {
+          this.active = true;
+          this.frames = this.pending;
+          this.pending = [];
+          this.startT = this.frames[0].t;
+          this.lastVoicedT = t;
+          return { type: 'start', frames: this.frames };
+        }
+      } else {
+        this.pending = [];
+      }
+      return null;
+    }
+
+    this.frames.push(frame);
+    if (r.voiced) this.lastVoicedT = t;
+
+    const silentFor = (t - this.lastVoicedT) * 1000;
+    const length = (t - this.startT) * 1000;
+    if (silentFor > this.cfg.releaseMs || length > this.cfg.maxMs) {
+      const frames = this.frames;
+      this.reset();
+      return { type: 'end', frames };
+    }
+    return { type: 'update', frames: this.frames };
+  }
+}
+
+return { UtteranceSegmenter };
+})();
+
+const __m11 = (() => {
+const { TONES, sampleShape } = __m5;
+// Tone classification from an F0 contour.
+//
+// Pipeline: voiced frames → semitones (log scale, speaker independent) →
+// octave-jump repair → median smoothing → time resampling → mean removal →
+// DTW distance to each scaled tone template → soft posterior + confidence.
+//
+// Mean removal plus a bounded per-template scale factor makes the comparison
+// depend on contour shape, not on the speaker's absolute pitch or range.
+
+
+const ST_REF_HZ = 100;
+const toSemitones = (hz) => 12 * Math.log2(hz / ST_REF_HZ);
+
+function median(arr) {
+  const s = Array.from(arr).sort((a, b) => a - b);
+  const m = s.length >> 1;
+  return s.length % 2 ? s[m] : 0.5 * (s[m - 1] + s[m]);
+}
+
+function medianFilter(v, k) {
+  const h = k >> 1;
+  const out = new Array(v.length);
+  for (let i = 0; i < v.length; i++) {
+    const lo = Math.max(0, i - h), hi = Math.min(v.length, i + h + 1);
+    out[i] = median(v.slice(lo, hi));
+  }
+  return out;
+}
+
+/**
+ * Turn segmenter frames into a clean contour.
+ * Returns null when there is too little reliable voicing.
+ */
+function extractContour(frames, minVoicedMs = 110) {
+  const voiced = frames.filter((f) => f.voiced);
+  if (voiced.length < 4) return null;
+
+  // Drop weak tail/onset frames (breath, creak)
+  let peak = 0;
+  for (const f of voiced) peak = Math.max(peak, f.rms);
+  const strong = voiced.filter((f) => f.rms >= 0.15 * peak);
+  if (strong.length < 4) return null;
+
+  const t0 = strong[0].t, t1 = strong[strong.length - 1].t;
+  const spanFrames = frames.filter((f) => f.t >= t0 && f.t <= t1).length;
+  const voicedFrac = strong.length / Math.max(1, spanFrames);
+
+  // Semitones + octave repair against a short running median
+  const st = [];
+  for (const f of strong) {
+    let v = toSemitones(f.f0);
+    if (st.length >= 3) {
+      const ref = median(st.slice(-3));
+      if (Math.abs(v - ref) > 8) {
+        if (Math.abs(v + 12 - ref) < 4) v += 12;
+        else if (Math.abs(v - 12 - ref) < 4) v -= 12;
+      }
+    }
+    st.push(v);
+  }
+  let smooth = medianFilter(st, 5);
+  let times = strong.map((f) => f.t);
+  if (smooth.length > 10) { smooth = smooth.slice(1, -1); times = times.slice(1, -1); }
+
+  const dur = times[times.length - 1] - times[0];
+  if (dur * 1000 < minVoicedMs) return null;
+
+  let clarity = 0;
+  for (const f of strong) clarity += f.clarity;
+
+  return {
+    t: times,
+    st: smooth,
+    dur,
+    meanSt: smooth.reduce((a, b) => a + b, 0) / smooth.length,
+    meanClarity: clarity / strong.length,
+    voicedFrac,
+  };
+}
+
+/** Linear interpolation of (t, v) onto n evenly spaced times. */
+function resample(t, v, n) {
+  const out = new Float64Array(n);
+  const t0 = t[0], t1 = t[t.length - 1];
+  let j = 0;
+  for (let i = 0; i < n; i++) {
+    const x = t0 + ((t1 - t0) * i) / (n - 1);
+    while (j < t.length - 2 && t[j + 1] < x) j++;
+    const span = t[j + 1] - t[j];
+    const u = span > 0 ? Math.min(1, Math.max(0, (x - t[j]) / span)) : 0;
+    out[i] = v[j] + (v[j + 1] - v[j]) * u;
+  }
+  return out;
+}
+
+function removeMean(v) {
+  let m = 0;
+  for (const x of v) m += x;
+  m /= v.length;
+  return v.map((x) => x - m);
+}
+
+/** Banded DTW; returns RMS cost along the optimal path (semitones). */
+function dtw(a, b, band) {
+  const n = a.length, m = b.length, W = m + 1;
+  const D = new Float64Array((n + 1) * W).fill(Infinity);
+  const L = new Float64Array((n + 1) * W);
+  D[0] = 0;
+  for (let i = 1; i <= n; i++) {
+    const center = Math.round((i * m) / n);
+    const jlo = Math.max(1, center - band), jhi = Math.min(m, center + band);
+    for (let j = jlo; j <= jhi; j++) {
+      const c = (a[i - 1] - b[j - 1]) ** 2;
+      const k = i * W + j;
+      let best = D[k - W - 1], len = L[k - W - 1];
+      if (D[k - W] < best) { best = D[k - W]; len = L[k - W]; }
+      if (D[k - 1] < best) { best = D[k - 1]; len = L[k - 1]; }
+      D[k] = c + best;
+      L[k] = len + 1;
+    }
+  }
+  const k = n * W + m;
+  return Math.sqrt(D[k] / Math.max(1, L[k]));
+}
+
+const clamp01 = (x) => Math.min(1, Math.max(0, x));
+
+/**
+ * Classify a contour.
+ * opts.prefix: compare only the opening part of each template (live charging),
+ * using expected syllable duration to decide how much of the shape to use.
+ */
+function classifyContour(contour, cfg, opts = {}) {
+  const N = cfg.points;
+  const raw = resample(contour.t, contour.st, N);
+  const c = removeMean(raw);
+  const upTo = opts.prefix ? Math.min(1, Math.max(0.3, contour.dur / 0.48)) : 1;
+
+  // Turning-point features separate 2nd (rise from the start) from 3rd (dip, then rise)
+  let minIdx = 0;
+  for (let i = 1; i < N; i++) if (raw[i] < raw[minIdx]) minIdx = i;
+  let startMax = raw[0];
+  for (let i = 1; i <= minIdx; i++) startMax = Math.max(startMax, raw[i]);
+  const fallDepth = startMax - raw[minIdx];
+  const minPos = minIdx / (N - 1);
+  const shapePenalty = { 1: 0, 2: 0, 3: 0, 4: 0 };
+  if (minPos > 0.25 && fallDepth > 0.7) shapePenalty[2] = 0.5 * (fallDepth - 0.7) + 0.2;
+  if (!opts.prefix || upTo > 0.6) {
+    if (fallDepth < 0.6) shapePenalty[3] = 0.6 * (0.6 - fallDepth) + 0.15;
+  }
+
+  const distances = {};
+  for (const k of [1, 2, 3, 4]) {
+    const tpl = removeMean(sampleShape(TONES[k].shape, N, upTo).map((x) => x * cfg.chaoToSemitone));
+    let tt = 0, ct = 0;
+    for (let i = 0; i < N; i++) { tt += tpl[i] * tpl[i]; ct += c[i] * tpl[i]; }
+    let scale = 1;
+    if (tt > 1e-6) scale = Math.min(cfg.scaleMax, Math.max(cfg.scaleMin, ct / tt));
+    const scaled = tpl.map((x) => x * scale);
+    const d = dtw(c, scaled, cfg.dtwBand);
+    distances[k] = Math.hypot(d, shapePenalty[k]);
+  }
+
+  // Soft posterior over the four tones
+  const probs = {};
+  let z = 0;
+  for (const k of [1, 2, 3, 4]) { probs[k] = Math.exp(-(distances[k] ** 2) / (2 * cfg.sigma ** 2)); z += probs[k]; }
+  for (const k of [1, 2, 3, 4]) probs[k] = z > 0 ? probs[k] / z : 0.25;
+
+  let top = 1;
+  for (const k of [2, 3, 4]) if (probs[k] > probs[top]) top = k;
+
+  // Signal quality: enough duration, clean periodicity, few dropouts
+  const quality =
+    clamp01((contour.dur - 0.08) / 0.14) *
+    clamp01((contour.meanClarity - 0.5) / 0.3) *
+    clamp01(contour.voicedFrac / 0.6);
+
+  const fits = distances[top] <= cfg.maxFitDistance;
+  const confidence = fits ? probs[top] * Math.sqrt(quality) : 0;
+  const tone = confidence >= cfg.minConfidence ? top : 'unknown';
+
+  return { tone, top, confidence, probs, distances, quality, contour: c };
+}
+
+/** 0-100 match score of a classification against the target tone. */
+function matchScore(result, target, cfg) {
+  const d = result.distances[target];
+  const sim = Math.exp(-((d / cfg.scoreWidth) ** 2));
+  return Math.round(100 * (0.65 * sim + 0.35 * result.probs[target]));
+}
+
+/** Full verdict for a finished utterance. */
+function analyzeUtterance(frames, target, cfg, strictRule) {
+  const contour = extractContour(frames, cfg.segment.minVoicedMs);
+  if (!contour) return { status: 'unclear', contour: null };
+  const result = classifyContour(contour, cfg.tone);
+  const score = matchScore(result, target, cfg.tone);
+  if (result.tone === 'unknown') return { status: 'unclear', contour, result, score };
+
+  const pTarget = result.probs[target];
+  const pass =
+    pTarget >= strictRule.minTargetProb &&
+    score >= strictRule.minScore &&
+    (!strictRule.requireTop || result.top === target);
+  return { status: pass ? 'correct' : 'wrong', contour, result, score };
+}
+
+/** Live (partial) evaluation while the player is still speaking. */
+function analyzeLive(frames, target, cfg) {
+  const contour = extractContour(frames, cfg.segment.minVoicedMs);
+  if (!contour) return null;
+  const result = classifyContour(contour, cfg.tone, { prefix: true });
+  return { contour, result, score: matchScore(result, target, cfg.tone) };
+}
+
+return { extractContour, resample, dtw, classifyContour, matchScore, analyzeUtterance, analyzeLive };
+})();
+
+const __m12 = (() => {
+
+// Live charging of the fishing rod from the partial pitch contour.
+// Power is 0..1. Live charging stops at liveCap; only a confirmed correct tone
+// at the end of the utterance fills the last part and triggers the cast.
+
+function livePowerStep(power, live, target, dt, cfg) {
+  if (!live || live.result.quality < 0.25) return { power, mood: 'listening' };
+
+  const p = live.result.probs[target];
+  const score = live.score;
+  let mood;
+  let next = power;
+
+  if (p >= 0.55 && score >= 60) {
+    // Close to the target: fill fast, faster when the match is better
+    next += cfg.chargeRate * dt * Math.min(1, (score - 45) / 45);
+    mood = score >= 80 ? 'close' : 'good';
+  } else if (p >= 0.3) {
+    next += cfg.chargeRate * 0.25 * dt;
+    mood = 'partial';
+  } else {
+    const otherTop = live.result.top !== target && live.result.probs[live.result.top] >= 0.6;
+    if (otherTop) next -= cfg.drainRate * dt;
+    mood = otherTop ? 'conflict' : 'partial';
+  }
+  next = Math.max(0, Math.min(cfg.liveCap, Math.max(next, mood === 'conflict' ? 0 : power)));
+  return { power: next, mood };
+}
+
+return { livePowerStep };
+})();
+
+const __m14 = (() => {
+
+// Vocabulary. Each item has one or more syllables; each syllable carries its own tone.
+// Levels 1-2 are single syllables (playable). Levels 3-4 are stored for the
+// per-syllable mode and are shown as locked until segmentation is added.
+
+const one = (hanzi, pinyin, tone, level) => ({ hanzi, level, syllables: [{ pinyin, tone }] });
+
+const VOCABULARY = [
+  // Level 1: the classic ma minimal set
+  one('妈', 'mā', 1, 1),
+  one('麻', 'má', 2, 1),
+  one('马', 'mǎ', 3, 1),
+  one('骂', 'mà', 4, 1),
+
+  // Level 2: everyday single syllables, balanced across tones
+  one('一', 'yī', 1, 2),
+  one('高', 'gāo', 1, 2),
+  one('书', 'shū', 1, 2),
+  one('天', 'tiān', 1, 2),
+  one('十', 'shí', 2, 2),
+  one('人', 'rén', 2, 2),
+  one('鱼', 'yú', 2, 2),
+  one('茶', 'chá', 2, 2),
+  one('五', 'wǔ', 3, 2),
+  one('好', 'hǎo', 3, 2),
+  one('水', 'shuǐ', 3, 2),
+  one('我', 'wǒ', 3, 2),
+  one('大', 'dà', 4, 2),
+  one('去', 'qù', 4, 2),
+  one('是', 'shì', 4, 2),
+  one('爱', 'ài', 4, 2),
+
+  // Level 3: two syllables (locked)
+  { hanzi: '你好', level: 3, syllables: [{ pinyin: 'nǐ', tone: 3 }, { pinyin: 'hǎo', tone: 3 }] },
+  { hanzi: '学生', level: 3, syllables: [{ pinyin: 'xué', tone: 2 }, { pinyin: 'shēng', tone: 1 }] },
+  { hanzi: '老师', level: 3, syllables: [{ pinyin: 'lǎo', tone: 3 }, { pinyin: 'shī', tone: 1 }] },
+
+  // Level 4: short sentences (locked)
+  { hanzi: '我很好。', level: 4, syllables: [{ pinyin: 'wǒ', tone: 3 }, { pinyin: 'hěn', tone: 3 }, { pinyin: 'hǎo', tone: 3 }] },
+];
+
+const LEVELS = [
+  { id: 1, name: '第一关', desc: '妈 · 麻 · 马 · 骂', playable: true },
+  { id: 2, name: '第二关', desc: '常用单字', playable: true },
+  { id: 3, name: '第三关', desc: '双音节词', playable: false },
+  { id: 4, name: '第四关', desc: '短句', playable: false },
+];
+
+/** Items available when playing a level (level 2 also includes level 1 words). */
+function itemsForLevel(level) {
+  return VOCABULARY.filter((v) => v.syllables.length === 1 && v.level <= level);
+}
+
+return { VOCABULARY, LEVELS, itemsForLevel };
+})();
+
+const __m13 = (() => {
+const { itemsForLevel } = __m14;
+// Picks the next word and lays out one fish and three trash items at random.
+
+
+const TRASH = ['bottle', 'can', 'bag', 'boot'];
+
+function shuffle(a) {
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+class TargetGenerator {
+  constructor() {
+    this.history = [];
+    this.lastFish = -1;
+  }
+
+  next(level, repeatItem = null) {
+    let item = repeatItem;
+    if (!item) {
+      const pool = itemsForLevel(level);
+      // Avoid the last two words, and avoid repeating the previous tone when possible
+      const recent = this.history.slice(-2);
+      let candidates = pool.filter((p) => !recent.includes(p.hanzi));
+      const lastTone = this.lastTone;
+      const varied = candidates.filter((p) => p.syllables[0].tone !== lastTone);
+      if (varied.length) candidates = varied;
+      item = candidates[Math.floor(Math.random() * candidates.length)];
+    }
+    this.history.push(item.hanzi);
+    this.lastTone = item.syllables[0].tone;
+
+    // Fish slot: random, but not the same slot twice in a row
+    let fish;
+    do { fish = Math.floor(Math.random() * 4); } while (fish === this.lastFish);
+    this.lastFish = fish;
+
+    const trash = shuffle(TRASH.slice()).slice(0, 3);
+    const slots = [];
+    for (let i = 0, k = 0; i < 4; i++) slots.push(i === fish ? 'fish' : trash[k++]);
+
+    return { item, tone: item.syllables[0].tone, slots, fishIndex: fish };
+  }
+}
+
+return { TargetGenerator };
+})();
+
+const __m15 = (() => {
+
+// Modest scoring: pronunciation matters more than points.
+
+class Scoring {
+  constructor(cfg) {
+    this.cfg = cfg;
+    this.score = 0;
+    this.combo = 0;
+    this.caught = 0;
+    this.rounds = 0;
+  }
+
+  success() {
+    this.combo += 1;
+    this.caught += 1;
+    this.rounds += 1;
+    const bonus = this.cfg.comboBonus * Math.min(this.combo - 1, this.cfg.comboBonusCap);
+    const points = this.cfg.basePoints + bonus;
+    this.score += points;
+    return points;
+  }
+
+  miss() {
+    this.combo = 0;
+    this.rounds += 1;
+  }
+}
+
+return { Scoring };
+})();
+
+const __m17 = (() => {
+const { TONES, sampleShape } = __m5;
+// Small SVG drawing of a tone contour on the five-level Chao staff.
+
+
+function toneGlyphSVG(tone, { width = 96, height = 56, staff = true, stroke = 5 } = {}) {
+  const t = TONES[tone];
+  const pad = stroke + 2;
+  const pts = Array.from(sampleShape(t.shape, 32));
+  const X = (i) => pad + (i / (pts.length - 1)) * (width - 2 * pad);
+  const Y = (lvl) => pad + ((5 - lvl) / 4) * (height - 2 * pad);
+  const d = pts.map((v, i) => `${i ? 'L' : 'M'}${X(i).toFixed(1)} ${Y(v).toFixed(1)}`).join(' ');
+  let lines = '';
+  if (staff) {
+    for (let k = 1; k <= 5; k++) {
+      lines += `<line x1="${pad}" x2="${width - pad}" y1="${Y(k)}" y2="${Y(k)}" stroke="currentColor" stroke-opacity="0.13" stroke-width="1"/>`;
+    }
+  }
+  return `<svg viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" aria-hidden="true">${lines}<path d="${d}" fill="none" stroke="${t.color}" stroke-width="${stroke}" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+}
+
+return { toneGlyphSVG };
+})();
+
+const __m16 = (() => {
+const { S } = __m9;
+const { TONES } = __m5;
+const { LEVELS } = __m14;
+const { toneGlyphSVG } = __m17;
+// DOM bindings. All text shown here comes from data/strings.js or vocabulary.
+
+
+
+
+
+const $ = (id) => document.getElementById(id);
+
+class UI {
+  constructor() {
+    this.el = {};
+    for (const id of [
+      'hanzi', 'pinyin', 'toneName', 'toneAlias', 'toneGlyph', 'matchVal', 'fbMain', 'fbDetail',
+      'chances', 'score', 'combo', 'pbFill', 'pbVal', 'powerbar', 'banner', 'levelChip', 'demoBadge',
+      'micMeter', 'listenBtn', 'skipBtn', 'retryBtn', 'nextBtn', 'demoRightBtn', 'demoWrongBtn',
+      'titleOverlay', 'micOverlay', 'settingsOverlay', 'micMsg', 'micRetryBtn', 'micDemoBtn',
+      'toneLegend', 'levels', 'startBtn', 'settingsBtn', 'settingsDone', 'settingsBack', 'segStrict', 'segSens',
+    ]) this.el[id] = $(id);
+    this.meterBars = Array.from(this.el.micMeter.querySelectorAll('i'));
+    this.demo = false;
+    this.renderLegend();
+  }
+
+  renderLegend() {
+    const examples = { 1: 'mā', 2: 'má', 3: 'mǎ', 4: 'mà' };
+    this.el.toneLegend.innerHTML = [1, 2, 3, 4]
+      .map((k) => `<div class="tone-chip">${toneGlyphSVG(k, { width: 72, height: 40, stroke: 4 })}<b>${TONES[k].name}</b><span style="color:${TONES[k].color}">${examples[k]}</span></div>`)
+      .join('');
+  }
+
+  renderLevels(selected, onPick) {
+    this.el.levels.innerHTML = LEVELS.map((l) => `
+      <button type="button" class="level${l.id === selected ? ' active' : ''}" data-level="${l.id}" ${l.playable ? '' : 'disabled'}>
+        <b>${l.name}</b><small>${l.playable ? l.desc : `${l.desc} · ${S.locked}`}</small>
+      </button>`).join('');
+    this.el.levels.querySelectorAll('.level:not([disabled])').forEach((b) => {
+      b.onclick = () => onPick(Number(b.dataset.level));
+    });
+  }
+
+  setLevel(level) { this.el.levelChip.textContent = LEVELS.find((l) => l.id === level).name; }
+
+  setItem(item, tone) {
+    const t = TONES[tone];
+    document.documentElement.style.setProperty('--t-color', t.color);
+    this.el.hanzi.textContent = item.hanzi;
+    this.el.hanzi.classList.remove('swap');
+    void this.el.hanzi.offsetWidth;
+    this.el.hanzi.classList.add('swap');
+    this.el.pinyin.textContent = item.syllables.map((s) => s.pinyin).join(' ');
+    this.el.toneName.textContent = t.name;
+    this.el.toneAlias.textContent = `${t.alias} · ${t.chao}`;
+    this.el.toneGlyph.innerHTML = toneGlyphSVG(tone);
+    this.setMatch(null);
+  }
+
+  setScore(score, combo, bump) {
+    this.el.score.textContent = score;
+    this.el.combo.textContent = combo;
+    if (bump) for (const e of [this.el.score, this.el.combo]) {
+      e.classList.remove('bump');
+      void e.offsetWidth;
+      e.classList.add('bump');
+    }
+  }
+
+  setFeedback(main, detail = '', cls = '') {
+    this.el.fbMain.textContent = main;
+    this.el.fbMain.className = `fb-main ${cls}`;
+    this.el.fbDetail.innerHTML = detail;
+  }
+
+  setMatch(v) { this.el.matchVal.textContent = v == null ? '—' : String(v); }
+
+  setPower(p, full = false) {
+    const pct = Math.round(Math.max(0, Math.min(1, p)) * 100);
+    this.el.pbFill.style.width = `${pct}%`;
+    this.el.pbVal.textContent = `${pct}%`;
+    this.el.powerbar.classList.toggle('full', full);
+  }
+
+  shakePower() {
+    const pb = this.el.powerbar;
+    pb.classList.remove('shake');
+    void pb.offsetWidth;
+    pb.classList.add('shake');
+  }
+
+  setChances(used, total) {
+    this.el.chances.innerHTML = Array.from({ length: total }, (_, i) => `<span class="${i < used ? 'used' : ''}"></span>`).join('');
+  }
+
+  banner(text, cls = '', ms = 1200) {
+    const b = this.el.banner;
+    clearTimeout(this.bannerTimer);
+    b.textContent = text;
+    b.className = `banner ${cls}`;
+    b.hidden = false;
+    if (ms) this.bannerTimer = setTimeout(() => { b.hidden = true; }, ms);
+  }
+
+  hideBanner() { clearTimeout(this.bannerTimer); this.el.banner.hidden = true; }
+
+  /** mode: 'listening' | 'busy' | 'success' | 'fail' */
+  setMode(mode) {
+    const e = this.el;
+    const listening = mode === 'listening';
+    e.listenBtn.hidden = !listening;
+    e.skipBtn.hidden = !listening;
+    e.demoRightBtn.hidden = !(listening && this.demo);
+    e.demoWrongBtn.hidden = !(listening && this.demo);
+    e.retryBtn.hidden = mode !== 'fail';
+    e.nextBtn.hidden = !(mode === 'fail' || mode === 'success');
+  }
+
+  setDemo(on) {
+    this.demo = on;
+    this.el.demoBadge.hidden = !on;
+  }
+
+  meter(level, voiced) {
+    const n = Math.round(Math.min(1, level) * this.meterBars.length);
+    this.meterBars.forEach((b, i) => {
+      b.classList.toggle('on', i < n);
+      b.classList.toggle('voiced', voiced && i < n);
+    });
+  }
+
+  showOverlay(name, on) { this.el[name].hidden = !on; }
+
+  micState(state) {
+    const e = this.el;
+    e.micMsg.textContent = state === 'asking' ? S.micAsk : state === 'insecure' ? S.micInsecure : S.micDenied;
+    e.micRetryBtn.hidden = state === 'asking';
+    e.micDemoBtn.hidden = state === 'asking';
+  }
+
+  bindSeg(el, value, onChange) {
+    const btns = el.querySelectorAll('button');
+    const paint = (v) => btns.forEach((b) => b.classList.toggle('on', b.dataset.v === v));
+    paint(value);
+    btns.forEach((b) => { b.onclick = () => { paint(b.dataset.v); onChange(b.dataset.v); }; });
+  }
+}
+
+function toneLine(targetTone, heardTone) {
+  const t = TONES[targetTone], h = heardTone ? TONES[heardTone] : null;
+  let s = `${S.targetIs('')}<span class="t" style="color:${t.color}">${t.name}</span>`;
+  if (h) s += `　${S.yoursIs('')}<span class="t" style="color:${h.color}">${h.name}</span>`;
+  return s;
+}
+
+return { UI, toneLine };
+})();
+
+const __m8 = (() => {
+const { CONFIG } = __m1;
+const { S } = __m9;
+const { TONES } = __m5;
+const { UtteranceSegmenter } = __m10;
+const { analyzeUtterance, analyzeLive } = __m11;
+const { livePowerStep } = __m12;
+const { TargetGenerator } = __m13;
+const { Scoring } = __m15;
+const { toneLine } = __m16;
+// Round flow: listen → live charging → verdict → cast → catch → next round.
+
+
+
+
+
+
+
+
+
+
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+
+class Game {
+  constructor({ ui, scene, graph, sounds }) {
+    this.ui = ui;
+    this.scene = scene;
+    this.graph = graph;
+    this.sounds = sounds; // { whoosh, splash, success, trash }
+    this.segmenter = new UtteranceSegmenter(CONFIG.segment);
+    this.generator = new TargetGenerator();
+    this.scoring = new Scoring(CONFIG.game);
+    this.level = 1;
+    this.strictness = 'standard';
+    this.phase = 'idle';
+    this.power = 0;
+    this.energy = 0;
+    this.muteUntil = 0;
+    this.lastT = null;
+    this.round = null;
+    this.roundId = 0;
+  }
+
+  startLevel(level) {
+    this.level = level;
+    this.ui.setLevel(level);
+    this.scoring = new Scoring(CONFIG.game);
+    this.ui.setScore(0, 0, false);
+    this.newRound();
+  }
+
+  stop() {
+    this.phase = 'idle';
+    clearTimeout(this.autoNext);
+    this.roundId++;
+  }
+
+  newRound(repeat = false) {
+    clearTimeout(this.autoNext);
+    this.roundId++;
+    this.round = this.generator.next(this.level, repeat && this.round ? this.round.item : null);
+    this.attempts = 0;
+    this.power = 0;
+    this.segmenter.reset();
+    this.scene.setRound(this.round.slots);
+    this.graph.setTarget(this.round.tone);
+    this.ui.setItem(this.round.item, this.round.tone);
+    this.ui.setPower(0);
+    this.ui.setChances(0, CONFIG.game.attemptsPerRound);
+    this.ui.setFeedback(S.sayIt, '');
+    this.ui.hideBanner();
+    this.ui.setMode('listening');
+    this.phase = 'listening';
+  }
+
+  /** Ignore analysis until `until` (seconds, audio clock), e.g. while a demo tone plays aloud. */
+  mute(until) { this.muteUntil = Math.max(this.muteUntil, until); this.segmenter.reset(); }
+
+  /** One analysed frame from the audio loop. */
+  onFrame(r, t) {
+    // Voice energy for the rod / ripples
+    const level = r.gate > 0 ? Math.max(0, r.rms / r.gate - 1) / 4 : 0;
+    this.energy += ((r.voiced ? Math.min(1, level) : 0) - this.energy) * 0.25;
+
+    if (this.phase !== 'listening' || t < this.muteUntil) {
+      this.lastT = t;
+      this.scene.setCharge(this.power, 0, 'idle');
+      return;
+    }
+    const ev = this.segmenter.push(t, r);
+    const dt = this.lastT == null ? 0 : Math.min(0.1, t - this.lastT);
+    this.lastT = t;
+
+    if (ev && (ev.type === 'start' || ev.type === 'update')) {
+      if (ev.type === 'start') this.ui.setFeedback(S.listening, '');
+      const live = analyzeLive(ev.frames, this.round.tone, CONFIG);
+      const step = livePowerStep(this.power, live, this.round.tone, dt, CONFIG.power);
+      this.power = step.power;
+      this.liveFeedback(step.mood, live);
+      if (live) {
+        this.graph.setContour(live.contour, false);
+        this.ui.setMatch(live.score);
+      }
+    } else if (ev && ev.type === 'end') {
+      this.finishUtterance(ev.frames);
+    }
+    this.ui.setPower(this.power);
+    this.scene.setCharge(this.power, this.energy, this.mood || 'idle');
+  }
+
+  liveFeedback(mood, live) {
+    this.mood = mood;
+    if (!live) return;
+    const text = { close: S.veryClose, good: S.good, partial: S.partial, conflict: S.watchContour }[mood];
+    if (text) this.ui.setFeedback(text, '', mood === 'close' || mood === 'good' ? 'good' : mood === 'conflict' ? 'warn' : '');
+    if (mood === 'conflict' && !this.shookAt) { this.ui.shakePower(); this.shookAt = performance.now(); }
+    if (this.shookAt && performance.now() - this.shookAt > 700) this.shookAt = 0;
+  }
+
+  async finishUtterance(frames) {
+    const v = analyzeUtterance(frames, this.round.tone, CONFIG, CONFIG.strictness[this.strictness]);
+    this.mood = 'idle';
+    if (v.contour) this.graph.setContour(v.contour, true);
+    if (v.score != null) this.ui.setMatch(v.score);
+
+    if (v.status === 'unclear') {
+      this.ui.setFeedback(S.sayAgain, '', 'warn');
+      return;
+    }
+    if (v.status === 'correct') {
+      await this.castSuccess();
+      return;
+    }
+
+    // Wrong tone: gentle feedback, keep part of the charge
+    this.attempts++;
+    this.power *= CONFIG.power.wrongKeep;
+    this.ui.setPower(this.power);
+    this.ui.shakePower();
+    this.ui.setChances(this.attempts, CONFIG.game.attemptsPerRound);
+    const left = CONFIG.game.attemptsPerRound - this.attempts;
+    const detail = toneLine(this.round.tone, v.result.tone) + (left > 0 ? `<br>${S.chancesLeft(left)}` : '');
+    this.ui.setFeedback(S.watchContour, detail, 'warn');
+    if (left <= 0) await this.castFail(v.result.tone);
+  }
+
+  async animatePower(to, ms) {
+    const from = this.power, start = performance.now();
+    while (true) {
+      const u = Math.min(1, (performance.now() - start) / ms);
+      this.power = from + (to - from) * (1 - (1 - u) ** 3);
+      this.ui.setPower(this.power, u >= 1 && to >= 1);
+      this.scene.setCharge(this.power, 0.4, 'good');
+      if (u >= 1) break;
+      await wait(16);
+    }
+  }
+
+  async castSuccess() {
+    const id = this.roundId;
+    this.phase = 'casting';
+    this.ui.setMode('busy');
+    this.ui.setFeedback(S.readyCast, '', 'good');
+    await this.animatePower(1, 380);
+    this.ui.banner(S.readyCast, '', 700);
+    await wait(500);
+    if (id !== this.roundId) return;
+    this.sounds.whoosh();
+    await this.scene.castTo(this.round.fishIndex, () => this.sounds.splash());
+    if (id !== this.roundId) return;
+    this.sounds.success();
+    const points = this.scoring.success();
+    this.ui.setScore(this.scoring.score, this.scoring.combo, true);
+    this.ui.setPower(0);
+    this.power = 0;
+    this.ui.banner(S.caught, 'good', 1800);
+    this.ui.setFeedback(S.caught, `${S.toneCorrect}${this.scoring.combo >= 3 ? S.great : ''}　+${points}`, 'good');
+    this.phase = 'result';
+    this.ui.setMode('success');
+    this.autoNext = setTimeout(() => { if (id === this.roundId) this.newRound(); }, CONFIG.game.autoNextMs);
+  }
+
+  async castFail(heardTone) {
+    const id = this.roundId;
+    this.phase = 'casting';
+    this.ui.setMode('busy');
+    await this.animatePower(1, 300);
+    await wait(250);
+    if (id !== this.roundId) return;
+    const trashSlots = this.round.slots.map((k, i) => (k === 'fish' ? -1 : i)).filter((i) => i >= 0);
+    const pick = trashSlots[Math.floor(Math.random() * trashSlots.length)];
+    this.sounds.whoosh();
+    await this.scene.castTo(pick, () => this.sounds.splash());
+    if (id !== this.roundId) return;
+    this.sounds.trash();
+    this.scoring.miss();
+    this.ui.setScore(this.scoring.score, this.scoring.combo, false);
+    this.power = 0;
+    this.ui.setPower(0);
+    this.ui.banner(S.caughtTrash, 'trash', 1800);
+    this.ui.setFeedback(S.caughtTrash, toneLine(this.round.tone, heardTone === 'unknown' ? null : heardTone), 'warn');
+    this.phase = 'result';
+    this.ui.setMode('fail');
+  }
+
+  skip() {
+    this.scoring.miss();
+    this.ui.setScore(this.scoring.score, this.scoring.combo, false);
+    this.newRound();
+  }
+
+  get targetTone() { return this.round ? this.round.tone : 1; }
+  toneName(k) { return TONES[k].name; }
+}
+
+return { Game };
+})();
+
+const __m18 = (() => {
+const { TONES, sampleShape } = __m5;
+// Real-time pitch graph: target tone contour (dashed) vs the player's contour.
+// Vertical axis is semitones around the player's own mean, so voices of any
+// range line up with the target shape the same way the classifier sees them.
+
+
+const G = {
+  bg: '#f4f7f3', grid: 'rgba(31,42,46,0.08)', axis: 'rgba(31,42,46,0.35)',
+  player: '#1f2a2e', playerSoft: 'rgba(31,42,46,0.35)',
+};
+
+class PitchGraph {
+  constructor(canvas, { stepSt = 1.8 } = {}) {
+    this.canvas = canvas;
+    this.ctx = canvas.getContext('2d');
+    this.stepSt = stepSt;
+    this.tone = 1;
+    this.live = null;
+    this.final = false;
+    this.center = null;
+    this.resize();
+    if (window.ResizeObserver) new ResizeObserver(() => { this.resize(); this.draw(); }).observe(canvas);
+  }
+
+  resize() {
+    const r = this.canvas.getBoundingClientRect();
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    this.canvas.width = Math.max(1, Math.round(r.width * dpr));
+    this.canvas.height = Math.max(1, Math.round(r.height * dpr));
+    this.dpr = dpr;
+    this.W = r.width;
+    this.H = r.height;
+  }
+
+  setTarget(tone) { this.tone = tone; this.live = null; this.final = false; this.draw(); }
+
+  /** contour: { t: number[], st: number[] } in seconds / semitones, or null. */
+  setContour(contour, final) {
+    this.live = contour;
+    this.final = final;
+    if (contour && contour.st.length) {
+      const m = contour.st.reduce((a, b) => a + b, 0) / contour.st.length;
+      this.center = this.center == null || final ? m : this.center + (m - this.center) * 0.3;
+    }
+    this.draw();
+  }
+
+  draw() {
+    const { ctx, W, H, dpr } = this;
+    if (!W || !H) return;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, W, H);
+    const padL = 22, padR = 10, padT = 10, padB = 10;
+    const iw = W - padL - padR, ih = H - padT - padB;
+    const span = 9; // ± semitones shown
+    const center = this.center ?? 0;
+    const X = (u) => padL + u * iw;
+    const Y = (st) => padT + ih / 2 - ((st - center) / span) * (ih / 2);
+
+    // Background + Chao level guides (5 lines)
+    ctx.fillStyle = G.bg;
+    ctx.fillRect(0, 0, W, H);
+    ctx.strokeStyle = G.grid;
+    ctx.lineWidth = 1;
+    for (let k = 1; k <= 5; k++) {
+      const y = Y(center + (k - 3) * this.stepSt);
+      ctx.beginPath();
+      ctx.moveTo(padL, y);
+      ctx.lineTo(W - padR, y);
+      ctx.stroke();
+    }
+    ctx.fillStyle = G.axis;
+    ctx.font = '600 12px "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('高', 4, Y(center + 2 * this.stepSt));
+    ctx.fillText('低', 4, Y(center - 2 * this.stepSt));
+
+    // Target contour, mean-centred like the classifier compares it
+    const tone = TONES[this.tone];
+    const tpl = Array.from(sampleShape(tone.shape, 48)).map((c) => c * this.stepSt);
+    const tm = tpl.reduce((a, b) => a + b, 0) / tpl.length;
+    ctx.strokeStyle = tone.color;
+    ctx.lineWidth = 7;
+    ctx.globalAlpha = 0.22;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    this.path(tpl.map((v, i) => [X(i / (tpl.length - 1)), Y(center + v - tm)]));
+    ctx.globalAlpha = 1;
+    ctx.lineWidth = 2.5;
+    ctx.setLineDash([7, 6]);
+    this.path(tpl.map((v, i) => [X(i / (tpl.length - 1)), Y(center + v - tm)]));
+    ctx.setLineDash([]);
+
+    // Player contour
+    const c = this.live;
+    if (c && c.t.length > 1) {
+      const t0 = c.t[0];
+      const dur = c.t[c.t.length - 1] - t0;
+      const width = this.final ? dur : Math.max(0.5, dur);
+      const pts = c.t.map((t, i) => [X(width > 0 ? (t - t0) / width : 0), Y(c.st[i])]);
+      ctx.strokeStyle = this.final ? G.player : G.playerSoft;
+      ctx.lineWidth = 3.2;
+      this.path(pts);
+      ctx.fillStyle = G.player;
+      const last = pts[pts.length - 1];
+      ctx.beginPath();
+      ctx.arc(last[0], last[1], 4.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  path(pts) {
+    const ctx = this.ctx;
+    ctx.beginPath();
+    pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+    ctx.stroke();
+  }
+}
+
+return { PitchGraph };
+})();
+
+const __m0 = (() => {
+const { CONFIG } = __m1;
+const { AudioEngine } = __m2;
+const { PitchTracker } = __m3;
+const { speakTone } = __m4;
+const { playWhoosh, playSplash, playSuccess, playTrash } = __m6;
+const { FishingScene } = __m7;
+const { Game } = __m8;
+const { PitchGraph } = __m18;
+const { UI } = __m16;
+// Entry point: wires audio, analysis, scene, UI and the game loop.
+
+
+
+
+
+
+
+
+
+
+const ui = new UI();
+const engine = new AudioEngine();
+const scene = new FishingScene(document.getElementById('scene'));
+const graph = new PitchGraph(document.getElementById('pitchGraph'), { stepSt: CONFIG.tone.chaoToSemitone });
+
+const withCtx = (fn) => () => { if (engine.ctx) fn(engine.ctx); };
+const game = new Game({
+  ui, scene, graph,
+  sounds: { whoosh: withCtx(playWhoosh), splash: withCtx(playSplash), success: withCtx(playSuccess), trash: withCtx(playTrash) },
+});
+
+let tracker = null;
+let running = false;
+let demoMode = false;
+let selectedLevel = 1;
+
+// ---------- settings (per-browser convenience only) ----------
+const prefs = { strictness: 'standard', sensitivity: 'medium' };
+try { Object.assign(prefs, JSON.parse(localStorage.getItem('tone-fishing-prefs') || '{}')); } catch (e) { /* storage unavailable */ }
+const savePrefs = () => { try { localStorage.setItem('tone-fishing-prefs', JSON.stringify(prefs)); } catch (e) { /* ignore */ } };
+game.strictness = prefs.strictness;
+
+ui.bindSeg(ui.el.segStrict, prefs.strictness, (v) => { prefs.strictness = v; game.strictness = v; savePrefs(); });
+ui.bindSeg(ui.el.segSens, prefs.sensitivity, (v) => {
+  prefs.sensitivity = v;
+  if (tracker) tracker.setSensitivity(CONFIG.sensitivity[v]);
+  savePrefs();
+});
+
+// ---------- title screen ----------
+const renderLevels = () => ui.renderLevels(selectedLevel, (lvl) => { selectedLevel = lvl; renderLevels(); });
+renderLevels();
+// Show an example round behind the title so the scene is alive at rest
+game.round = game.generator.next(1);
+scene.setRound(game.round.slots);
+graph.setTarget(game.round.tone);
+ui.setItem(game.round.item, game.round.tone);
+ui.setChances(0, CONFIG.game.attemptsPerRound);
+ui.setMode('busy');
+
+ui.el.startBtn.onclick = async () => {
+  engine.ensureContext();
+  ui.showOverlay('titleOverlay', false);
+  if (demoMode || engine.hasMic) { begin(); return; }
+  await requestMic();
+};
+
+async function requestMic() {
+  ui.micState('asking');
+  ui.showOverlay('micOverlay', true);
+  const result = await engine.startMic();
+  if (result === 'ok') {
+    ui.showOverlay('micOverlay', false);
+    setDemo(false);
+    begin();
+  } else {
+    ui.micState(result);
+  }
+}
+
+ui.el.micRetryBtn.onclick = () => requestMic();
+ui.el.micDemoBtn.onclick = () => {
+  ui.showOverlay('micOverlay', false);
+  setDemo(true);
+  begin();
+};
+
+function setDemo(on) {
+  demoMode = on;
+  ui.setDemo(on);
+}
+
+function begin() {
+  engine.ensureContext();
+  if (!tracker || tracker.sampleRate !== engine.sampleRate) {
+    tracker = new PitchTracker(engine.sampleRate, CONFIG.pitch);
+    tracker.sampleRate = engine.sampleRate;
+    tracker.setSensitivity(CONFIG.sensitivity[prefs.sensitivity]);
+  }
+  running = true;
+  game.startLevel(selectedLevel);
+}
+
+// ---------- in-game buttons ----------
+ui.el.listenBtn.onclick = () => {
+  const ctx = engine.ensureContext();
+  const dur = speakTone(ctx, game.targetTone, { baseHz: 165 });
+  game.mute(engine.now + dur + 0.35); // do not analyse our own demo through the mic
+};
+
+function demoSpeak(correct) {
+  const ctx = engine.ensureContext();
+  const target = game.targetTone;
+  let tone = target;
+  if (!correct) {
+    const others = [1, 2, 3, 4].filter((k) => k !== target);
+    tone = others[Math.floor(Math.random() * others.length)];
+  }
+  const voices = [110, 145, 190, 235]; // different speakers, same shapes
+  speakTone(ctx, tone, { baseHz: voices[Math.floor(Math.random() * voices.length)], analysisNode: engine.input });
+}
+ui.el.demoRightBtn.onclick = () => demoSpeak(true);
+ui.el.demoWrongBtn.onclick = () => demoSpeak(false);
+
+ui.el.skipBtn.onclick = () => game.skip();
+ui.el.nextBtn.onclick = () => game.newRound();
+ui.el.retryBtn.onclick = () => game.newRound(true);
+
+ui.el.settingsBtn.onclick = () => ui.showOverlay('settingsOverlay', true);
+ui.el.settingsDone.onclick = () => ui.showOverlay('settingsOverlay', false);
+ui.el.settingsBack.onclick = () => {
+  ui.showOverlay('settingsOverlay', false);
+  game.stop();
+  running = false;
+  ui.setMode('busy');
+  renderLevels();
+  ui.showOverlay('titleOverlay', true);
+};
+
+// ---------- main loop ----------
+let prev = performance.now();
+function loop(now) {
+  const dt = Math.min(0.05, (now - prev) / 1000);
+  prev = now;
+  if (running && tracker && engine.analyser) {
+    const buf = engine.read();
+    if (buf) {
+      const r = tracker.analyze(buf);
+      game.onFrame(r, engine.now);
+      ui.meter(r.gate > 0 ? r.rms / (r.gate * 4) : 0, r.voiced);
+    }
+  }
+  scene.frame(dt);
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+return {  };
+})();
+</script>
+</body>
+</html>

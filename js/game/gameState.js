@@ -9,6 +9,8 @@ import { livePowerStep } from './power.js';
 import { TargetGenerator } from './targetGenerator.js';
 import { Scoring } from './scoring.js';
 import { toneLine } from '../ui/ui.js';
+import { pronunciationHint } from '../lesson/hints.js';
+import { recordAttempt } from '../diagnostics.js';
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -110,12 +112,13 @@ export class Game {
 
   async finishUtterance(frames) {
     const v = analyzeUtterance(frames, this.round.tone, CONFIG, CONFIG.strictness[this.strictness]);
+    recordAttempt({ where: 'game', target: this.round.tone, frames, verdict: v });
     this.mood = 'idle';
     if (v.contour) this.graph.setContour(v.contour, true);
     if (v.score != null) this.ui.setMatch(v.score);
 
     if (v.status === 'unclear') {
-      this.ui.setFeedback(S.sayAgain, '', 'warn');
+      this.ui.setFeedback(S.sayAgain, pronunciationHint(v, this.round.tone).fix, 'warn');
       return;
     }
     if (v.status === 'correct') {
@@ -130,7 +133,8 @@ export class Game {
     this.ui.shakePower();
     this.ui.setChances(this.attempts, CONFIG.game.attemptsPerRound);
     const left = CONFIG.game.attemptsPerRound - this.attempts;
-    const detail = toneLine(this.round.tone, v.result.tone) + (left > 0 ? `<br>${S.chancesLeft(left)}` : '');
+    const hint = pronunciationHint(v, this.round.tone);
+    const detail = toneLine(this.round.tone, v.result.tone) + `<br>${hint.problem}${hint.fix}` + (left > 0 ? `<br>${S.chancesLeft(left)}` : '');
     this.ui.setFeedback(S.watchContour, detail, 'warn');
     if (left <= 0) await this.castFail(v.result.tone);
   }

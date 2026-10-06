@@ -53,6 +53,27 @@ export function yin(x, sampleRate, opts, scratch) {
     }
   }
 
+  // Sub-harmonic guard. During onsets, offsets and loudness changes the dip at
+  // the true period can sit just above the threshold while a dip at 2x..8x the
+  // period sneaks under it, giving a pitch several octaves too low. If a dip at
+  // best/k is nearly as deep, the shorter lag is the real period.
+  for (let k = 8; k >= 2; k--) {
+    const center = best / k;
+    if (center < tauMin) continue;
+    const r = Math.max(2, Math.round(center * 0.06));
+    let loc = -1, v = Infinity;
+    for (let t = Math.max(tauMin, Math.floor(center - r)); t <= Math.min(tauMax, Math.ceil(center + r)); t++) {
+      if (d[t] < v) { v = d[t]; loc = t; }
+    }
+    if (loc > 0 && v < 0.45 && v < d[best] + 0.15 && d[loc - 1] >= v && d[loc + 1] >= v) {
+      best = loc;
+      break;
+    }
+  }
+
+  // A "minimum" on the edge of the search range is not a periodicity dip
+  if (best >= tauMax - 1 || best <= tauMin) return { f0: sampleRate / best, clarity: 0 };
+
   // Parabolic interpolation around the chosen lag
   const a = d[best - 1], b = d[best], c = d[best + 1];
   const denom = a - 2 * b + c;
@@ -70,8 +91,9 @@ export class PitchTracker {
     this.cfg = { ...pitchCfg };
     this.factor = Math.max(1, Math.round(sampleRate / pitchCfg.targetRate));
     this.rate = sampleRate / this.factor;
-    this.noiseFloor = 0.002;
+    this.noiseFloor = 0.0004;
     this.sensitivity = 1;
+    this.steadyTime = 0; // seconds of uninterrupted voicing
     this.dec = null;
     this.scratch = new Float32Array(Math.ceil(this.rate / pitchCfg.fMin) + 4);
   }
@@ -85,7 +107,8 @@ export class PitchTracker {
     return (w + tauMax + 2) * this.factor;
   }
 
-  analyze(buffer) {
+  /** buffer: newest samples; dt: seconds since the previous call (for level tracking). */
+  analyze(buffer, dt = 1 / 60) {
     // Use only the newest ~45 ms: short enough to follow fast tone glides,
     // long enough for two periods of a low voice.
     const need = this.frameLength;
@@ -102,11 +125,18 @@ export class PitchTracker {
     const inRange = f0 >= this.cfg.fMin && f0 <= this.cfg.fMax;
     const voiced = rms > gate && clarity >= this.cfg.minClarity && inRange;
 
+    // Background level by minimum statistics: falls quickly to quiet moments,
+    // rises slowly (~6 s) so a spoken syllable barely moves it, but a fan or
+    // a noisy room is learned within seconds.
+    const k = (tau) => 1 - Math.exp(-dt / tau);
     if (!voiced) {
-      // Track background level slowly; loud non-periodic sounds raise it a little
-      this.noiseFloor += 0.03 * (Math.min(rms, this.noiseFloor * 4 + 1e-4) - this.noiseFloor);
-      this.noiseFloor = Math.min(0.05, Math.max(0.0004, this.noiseFloor));
+      this.noiseFloor += (rms - this.noiseFloor) * (rms < this.noiseFloor ? k(0.08) : k(6));
     }
+    // Periodic sound that never stops (mains hum, a running machine) is not
+    // speech: after 2.5 s of uninterrupted voicing, learn its level as background.
+    this.steadyTime = voiced ? this.steadyTime + dt : 0;
+    if (this.steadyTime > 2.5) this.noiseFloor += (rms - this.noiseFloor) * k(0.5);
+    this.noiseFloor = Math.min(0.05, Math.max(0.00005, this.noiseFloor));
     return { voiced, f0, clarity, rms, gate };
   }
 }
